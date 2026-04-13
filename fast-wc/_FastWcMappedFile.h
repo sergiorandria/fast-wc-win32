@@ -2,6 +2,8 @@
 
 #include <string>
 #include <string_view>
+
+#define NOMINMAX
 #include <Windows.h>
 #include <span>
 

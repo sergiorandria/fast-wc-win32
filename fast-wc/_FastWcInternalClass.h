@@ -26,7 +26,7 @@ namespace core {
 		__FORCE_INLINE std::size_t wcWord(std::size_t fileIndex = 0);
 		__FORCE_INLINE std::size_t wcLine(std::size_t f_idx) noexcept;
 		__FORCE_INLINE std::size_t wcCharC(size_t f_idx);
-		__FORCE_INLINE std::size_t wcCharM(std::size_t f_idx) noexcept;
+		__FORCE_INLINE std::size_t wcCharM(std::size_t f_idx);
 
 		__FORCE_INLINE std::size_t getTotalWord() const noexcept;
 
@@ -55,7 +55,7 @@ namespace core {
 				.help("count characters")
 				.flag();
 
-			_argParser.add_argument("-b", "--bytes")
+			_argParser.add_argument("-m", "--bytes")
 				.action([&](const auto&) { countByte = true; })
 				.help("count bytes")
 				.flag();

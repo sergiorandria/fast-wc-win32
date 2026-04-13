@@ -36,7 +36,18 @@ namespace tp {
 		std::size_t threadCount() const;
 
 	private: 
-		inline _FastWcThreadPool(std::size_t nCore) : cpuCore(nCore) {};
+		inline _FastWcThreadPool(std::size_t nCore) : cpuCore(nCore) 
+		{
+			if (nCore == 0) 
+				throw std::runtime_error("hardware_concurrency() returned 0");
+			
+			taskQueues.resize(nCore);
+			threads.reserve(nCore);
+			for (std::size_t i = 0; i < nCore; ++i) 
+			{
+				threads.emplace_back(&_FastWcThreadPool::workerThread, this, i);
+			}
+		};
 
 		std::mutex submitMutex; 
 		size_t cpuCore; 
@@ -45,8 +56,9 @@ namespace tp {
 		std::vector < std::thread> threads;
 		std::vector<tp::_FastWcAlignedTaskQueue> taskQueues; 
 		std::atomic_bool stopping = false;
-		std::atomic<size_t> nextQueueIndex = 0;
-		std::atomic<size_t> activeThreads = 0;
+		std::atomic<std::size_t> nextQueueIndex = 0;
+		std::atomic<std::size_t> activeThreads = 0;
+		std::atomic<std::size_t> pendingTasks = 0;
 	};
 
 	template <typename Callable, typename... Args>
@@ -68,8 +80,7 @@ namespace tp {
 				throw std::runtime_error("ThreadPool is stopping, cannot submit new tasks.");
 			}
 
-			size_t nCore = tp::hardware_concurrency();
-			size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % nCore;
+			size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % cpuCore;
 			{
 				std::unique_lock<std::mutex> lock(taskQueues[taskQueueIndex]._queueMutex);
 				taskQueues[taskQueueIndex]._taskQueue.emplace(
@@ -85,7 +96,6 @@ namespace tp {
 						}
 					});
 			} activeThreads.fetch_add(1, std::memory_order_release);
-			taskQueues[taskQueueIndex]._queueMutex.unlock(); // When testing, if something bugs, try to remove this
 		} tpCv.notify_one();
 
 		return result;
@@ -103,10 +113,9 @@ namespace tp {
 				throw std::runtime_error("Thread pool is stopping, cannot acquire new task");
 			}
 
-			size_t nCore = tp::hardware_concurrency();
 			for (Iterator it = begin; it != end; ++it)
 			{
-				size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % nCore;
+				size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % cpuCore;
 				{
 					std::unique_lock<std::mutex> lock(taskQueues[taskQueueIndex]._queueMutex);
 					taskQueues[taskQueueIndex]._taskQueue.emplace([task = *it]() -> void {
@@ -119,7 +128,7 @@ namespace tp {
 						});
 				}
 				count++;
-			} activeThreads.fetch_add(1, std::memory_order_release);
+			} activeThreads.fetch_add(count, std::memory_order_release);
 		}
 
 		if (count <= 1)
@@ -144,8 +153,7 @@ namespace tp {
 				throw std::runtime_error("ThreadPool is stopping, cannot submit new tasks.");
 			}
 
-			size_t nCore = tp::hardware_concurrency();
-			size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % nCore;
+			size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % cpuCore;
 			{
 				std::unique_lock<std::mutex> lock(taskQueues[taskQueueIndex]._queueMutex);
 				taskQueues[taskQueueIndex]._taskQueue.emplace([task = std::move(task)]() -> void {
@@ -158,7 +166,6 @@ namespace tp {
 					}
 					});
 			} activeThreads.fetch_add(1, std::memory_order_release);
-			taskQueues[taskQueueIndex]._queueMutex.unlock(); // When testing if something bugs, try to remove this
 		} tpCv.notify_one();
 	}
 
@@ -202,7 +209,7 @@ namespace tp {
 
 			if (!foundTask)
 			{
-				for (std::size_t i = 0; i <= cpuCore; ++i)
+				for (std::size_t i = 1; i < cpuCore; ++i)
 				{
 					std::size_t stealFromIndex = (threadIndex + i) % cpuCore;
 					taskQueues[stealFromIndex]._queueMutex.lock();
@@ -212,7 +219,6 @@ namespace tp {
 						task = std::move(taskQueues[stealFromIndex]._taskQueue.front());
 						taskQueues[stealFromIndex]._taskQueue.pop();
 						foundTask = true;
-						taskQueues[stealFromIndex]._queueMutex.unlock();
 						break;
 					}
 				}
@@ -225,7 +231,7 @@ namespace tp {
 			else {
 				std::unique_lock<std::mutex> lock(submitMutex);
 				tpCv.wait(lock, [this, threadIndex] {
-					return stopping.load(std::memory_order_acquire) || activeThreads.load(std::memory_order_acquire) > 0;
+					return stopping.load(std::memory_order_acquire) || pendingTasks.load(std::memory_order_acquire) > 0;
 					});
 
 
@@ -238,7 +244,7 @@ namespace tp {
 						hasTask = false;
 						std::unique_lock<std::mutex> lock(taskQueues[threadIndex]._queueMutex);
 
-						if (taskQueues[threadIndex]._taskQueue.empty())
+						if (!taskQueues[threadIndex]._taskQueue.empty())
 						{
 							task = std::move(taskQueues[threadIndex]._taskQueue.front());
 							taskQueues[threadIndex]._taskQueue.pop();

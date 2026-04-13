@@ -1,5 +1,6 @@
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 
 #include "_FastWcInternalClass.h"
 #include "_FastWcUtil.h"
@@ -146,12 +147,12 @@ namespace core {
 
         // Determine optimal chunk size for work distribution
         const std::size_t min_chunk_size = 1;
-        const std::size_t max_chunk_size = 10;
+        const std::size_t max_chunk_size = 5;
         const std::size_t chunk_size =
             std::clamp(numFiles / numThread, min_chunk_size, max_chunk_size);
 
         for (std::size_t chunk_start = 0; chunk_start < numFiles; chunk_start += chunk_size) {
-            std::size_t chunk_end = min(chunk_start + chunk_size, numFiles);
+            std::size_t chunk_end = std::min(chunk_start + chunk_size, numFiles);
             std::size_t thread_idx = (chunk_start / chunk_size) % numThread;
             
             futures.push_back(pool->submit(
@@ -164,14 +165,14 @@ namespace core {
                             _mappedFile[i].setLineCnt(var);
                             acc.total_line += var;
                             acc.max_line_width =
-                                ((acc.max_line_width) > (util::intWidth(var))) ? (acc.max_line_width) : (util::intWidth(var));
+                                std::max(acc.max_line_width, util::intWidth(var));
                         }
                         if (countWord) {
                             var = wcWord(i);
                             _mappedFile[i].setWordCnt(var);
                             acc.total_word += var;
                             acc.max_word_width =
-                                ((acc.max_word_width) > (util::intWidth(var))) ? (acc.max_word_width) : (util::intWidth(var));
+                                std::max(acc.max_word_width, util::intWidth(var));
                         }
 
                         if (countByte) {
@@ -179,7 +180,7 @@ namespace core {
                             _mappedFile[i].setBytesCnt(var);
                             acc.total_bytes += var;
                             acc.max_bytes_width =
-                                ((acc.max_bytes_width) > (util::intWidth(var))) ? (acc.max_bytes_width) : (util::intWidth(var));
+                                std::max(acc.max_bytes_width, util::intWidth(var));
                         }
 
                         if (countChar) {
@@ -187,7 +188,7 @@ namespace core {
                             _mappedFile[i].setCharCnt(var);
                             acc.total_char += var;
                             acc.max_char_width =
-                                ((acc.max_char_width) > (util::intWidth(var))) ? (acc.max_char_width) : (util::intWidth(var));
+                                std::max(acc.max_char_width, util::intWidth(var));
                         }
                     }
                 }));
@@ -208,6 +209,7 @@ namespace core {
         maxLinesWidth = 0;
         maxWordsWidth = 0;
         maxBytesWidth = 0;
+		maxCharsWidth = 0;
 
         for (const auto& acc : accumulators) {
             totalLines += acc.total_line;
@@ -215,10 +217,10 @@ namespace core {
             totalBytes += acc.total_bytes;
             totalChars += acc.total_char;
 
-            maxLinesWidth = max(maxLinesWidth, acc.max_line_width);
-            maxWordsWidth = max(maxWordsWidth, acc.max_word_width);
-            maxBytesWidth = max(maxBytesWidth, acc.max_bytes_width);
-            maxCharsWidth = max(maxCharsWidth, acc.max_char_width);
+            maxLinesWidth = std::max(maxLinesWidth, acc.max_line_width);
+            maxWordsWidth = std::max(maxWordsWidth, acc.max_word_width);
+            maxBytesWidth = std::max(maxBytesWidth, acc.max_bytes_width);
+            maxCharsWidth = std::max(maxCharsWidth, acc.max_char_width);
         }
     }
 
@@ -244,6 +246,7 @@ namespace core {
 				break;
 			}
 		}
+
 		return wCount;
 	}
 
@@ -615,7 +618,7 @@ namespace core {
      * @note Requires CPU with SSE2 support.
      */
     __SSE2_TARGET
-    __FORCE_INLINE std::size_t _FastWcInternalClass::wcCharM(std::size_t f_idx = 0) noexcept {
+    __FORCE_INLINE std::size_t _FastWcInternalClass::wcCharM(std::size_t f_idx = 0) {
         if (_mappedFile.empty() || !_mappedFile[f_idx].valid()) {
             return 0;
         }
@@ -632,8 +635,18 @@ namespace core {
             __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ptr));
             __m128i masked = _mm_and_si128(chunk, continuation_mask);
             __m128i is_continuation = _mm_cmpeq_epi8(masked, continuation_pattern);
-            int continuation_bits = _mm_movemask_epi8(is_continuation);
-            charCount += 16 - __popcnt(static_cast<uint32_t>(continuation_bits));
+            
+            // is_continuation bytes are 0xFF (-1) for continuations, 0x00 for non-continuations.
+            // Subtracting from zero: negate to get +1 per continuation byte.
+            // Then horizontally sum to count them.
+            __m128i ones = _mm_sub_epi8(_mm_setzero_si128(), is_continuation); // 0x01 per continuation
+
+            // Horizontal sum of 16 bytes using SSE2 SAD trick
+            __m128i sum = _mm_sad_epu8(ones, _mm_setzero_si128()); // sums into two 64-bit lanes
+            int continuations = _mm_cvtsi128_si32(sum)                   // lower lane
+                + _mm_cvtsi128_si32(_mm_srli_si128(sum, 8)); // upper lane
+
+            charCount += 16 - continuations;
             ptr += 16;
         }
 
