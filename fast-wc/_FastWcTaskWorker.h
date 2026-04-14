@@ -5,6 +5,8 @@
 constexpr auto FAST_WC_TASK_WORKER_SIZE = 256;
 
 namespace tp {
+	static std::size_t idCounter = 0; 
+
 	template <typename T, typename DecayedType> 
 	constexpr bool is_decay_equal = std::is_same_v<std::decay_t<T>, DecayedType>;
 
@@ -29,6 +31,7 @@ namespace tp {
 		explicit operator bool() const noexcept;
 
 	private: 
+		std::size_t uid; 
 		alignas(std::max_align_t) char _taskData[FAST_WC_TASK_WORKER_SIZE];
 
 		void (*_taskInvoke)(void*) = nullptr;

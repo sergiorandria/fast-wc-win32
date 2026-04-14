@@ -147,7 +147,7 @@ namespace core {
 
         // Determine optimal chunk size for work distribution
         const std::size_t min_chunk_size = 1;
-        const std::size_t max_chunk_size = 5;
+        const std::size_t max_chunk_size = 10;
         const std::size_t chunk_size =
             std::clamp(numFiles / numThread, min_chunk_size, max_chunk_size);
 
@@ -229,26 +229,41 @@ namespace core {
         parseArgv(argc, argv);
     }
 
-	std::size_t _FastWcInternalClass::wcWord(std::size_t fileIndex)
-	{
-		size_t wCount{}, pos = 0;
-		auto data = _mappedFile[fileIndex].as_span();
-		auto str = std::string_view(data.data());
+    std::size_t _FastWcInternalClass::wcWord(std::size_t fileIndex)
+    {
+        if (_mappedFile.empty() || !_mappedFile[fileIndex].valid())
+        {
+            return 0;
+        }
 
-		while (true) [[likely]] {
-			if ((pos = str.find_first_not_of(" \r\n\t", pos + 1)) == str.npos) {
-				break;
-			}
+        auto data = _mappedFile[fileIndex].as_span();
+        if (data.size() == 0)
+        {
+            return 0;
+        }
+        std::string_view str(data.data(), data.size());
 
-			wCount++;
+        std::size_t wCount = 0;
+        std::size_t pos = 0;
+        while (true)
+        {
+            pos = str.find_first_not_of(" \r\n\t", pos);
+            if (pos == std::string_view::npos)
+            {
+                break;
+            }
 
-			if ((pos = str.find_first_of(" \r\n\t", pos + 1)) == str.npos) {
-				break;
-			}
-		}
+            ++wCount;
 
-		return wCount;
-	}
+            pos = str.find_first_of(" \r\n\t", pos);
+            if (pos == std::string_view::npos)
+            {
+                break;
+            }
+        }
+
+        return wCount;
+    }
 
 #ifdef __AVX512F__
     [[gnu::target("avx512f")]]

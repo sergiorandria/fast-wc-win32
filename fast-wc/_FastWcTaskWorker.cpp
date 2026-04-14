@@ -1,104 +1,78 @@
 #include "_FastWcTaskWorker.h"
 #include "_ProjMacro.h"
-#include <type_traits>
+#include <cstring>
 #include <memory>
 #include <functional>
 #include <Windows.h>
+#include <bit>
 
-tp::_FastWcTaskWorker::_FastWcTaskWorker() = default;
+namespace tp {
+    _FastWcTaskWorker::_FastWcTaskWorker() { 
+        uid = idCounter++; 
+        std::memset(&_taskData, 0x0000, FAST_WC_TASK_WORKER_SIZE); 
+    };
 
-tp::_FastWcTaskWorker::~_FastWcTaskWorker()
-{
-	if (_taskCleanup) {
-		_taskCleanup(_taskData);
-	}
+    _FastWcTaskWorker::~_FastWcTaskWorker() {
+        if (_taskCleanup) {
+            _taskCleanup(_taskData);
+        }
+    }
+
+    _FastWcTaskWorker::_FastWcTaskWorker(_FastWcTaskWorker&& obj) noexcept {
+        std::memcpy(_taskData, obj._taskData, sizeof(_taskData));
+        _taskInvoke = std::exchange(obj._taskInvoke, nullptr);
+        _taskMove = std::exchange(obj._taskMove, nullptr);
+        _taskCleanup = std::exchange(obj._taskCleanup, nullptr);
+    }
+
+    _FastWcTaskWorker& _FastWcTaskWorker::operator=(_FastWcTaskWorker&& obj) noexcept {
+        if (this != &obj) {
+            if (_taskCleanup) {
+                _taskCleanup(_taskData);
+            }
+
+            std::memcpy(_taskData, obj._taskData, sizeof(_taskData));
+            _taskInvoke = std::exchange(obj._taskInvoke, nullptr);
+            _taskMove = std::exchange(obj._taskMove, nullptr);
+            _taskCleanup = std::exchange(obj._taskCleanup, nullptr);
+        }
+
+        return *this;
+    }
+
+    void _FastWcTaskWorker::operator()() const {
+        _taskInvoke(const_cast<void*>(static_cast<const void*>(_taskData)));
+    }
+
+    _FastWcTaskWorker::operator bool() const noexcept {
+        return _taskInvoke != nullptr;
+    }
 }
 
-tp::_FastWcTaskWorker::_FastWcTaskWorker(_FastWcTaskWorker&& obj) noexcept
-{
-	std::memset(_taskData, 0, sizeof(_taskData));
-	if (obj._taskMove) {
-		obj._taskMove(_taskData, obj._taskData);
-		_taskInvoke = obj._taskInvoke;
-		_taskMove = obj._taskMove;
-		_taskCleanup = obj._taskCleanup;
-		obj._taskInvoke = nullptr;
-		obj._taskMove = nullptr;
-		obj._taskCleanup = nullptr;
-	} 
-}
+size_t tp::hardware_concurrency() {
+    size_t concurrency = 0;
+    DWORD length = 0;
 
-tp::_FastWcTaskWorker& tp::_FastWcTaskWorker::operator=(_FastWcTaskWorker&& obj) noexcept
-{
-	if (this != &obj) {
-		if (_taskCleanup) {
-			_taskCleanup(_taskData);
-		}
+    if (GetLogicalProcessorInformationEx(RelationAll, nullptr, &length) == FALSE) {
+        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            return concurrency;
+        }
+    }
 
-		if (obj._taskMove) {
-			obj._taskMove(_taskData, obj._taskData);
-			_taskInvoke = obj._taskInvoke;
-			_taskMove = obj._taskMove;
-			_taskCleanup = obj._taskCleanup;
-			obj._taskInvoke = nullptr;
-			obj._taskMove = nullptr;
-			obj._taskCleanup = nullptr;
-		}
-		else {
-			_taskInvoke = nullptr;
-			_taskMove = nullptr;
-			_taskCleanup = nullptr;
-		}
-	}
-	
-	return *this; 
-}
+    std::unique_ptr<unsigned char[]> buffer(new unsigned char[length]);
+    if (GetLogicalProcessorInformationEx(RelationAll, reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.get()), &length) == FALSE) {
+        return concurrency;
+    }
 
-void tp::_FastWcTaskWorker::operator()() const {
-	return _taskInvoke(const_cast<void*>(static_cast<const void*>(_taskData)));
-}
+    for (DWORD i = 0; i < length;) {
+        auto* proc = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.get() + i);
+        if (proc->Relationship == RelationProcessorCore) {
+            for (WORD group = 0; group < proc->Processor.GroupCount; ++group) {
+                concurrency += std::popcount(proc->Processor.GroupMask[group].Mask);
+            }
+        }
+        i += proc->Size;
+    }
 
-tp::_FastWcTaskWorker::operator bool() const noexcept {
-	return _taskInvoke != nullptr;
-}
-
-size_t tp::hardware_concurrency()
-{
-	size_t concurrency = 0;
-	DWORD length = 0;
-
-	if (GetLogicalProcessorInformationEx(RelationAll, nullptr, &length) != FALSE) {
-		return concurrency;
-	}
-
-	if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-		return concurrency;
-	}
-
-	using BufferType = std::unique_ptr<void, void(*)(void*)>;
-	BufferType buffer(std::malloc(length), std::free);
-
-	if (!buffer) {
-		return concurrency;
-	}
-
-	unsigned char* mem = reinterpret_cast<unsigned char*>(buffer.get());
-	if (GetLogicalProcessorInformationEx(RelationAll, reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(mem), &length) == false) {
-		return concurrency;
-	}
-
-	for (DWORD i = 0; i < length; ) {
-		auto* proc = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(mem + i);
-		if (proc->Relationship == RelationProcessorCore) {
-			for (WORD group = 0; group < proc->Processor.GroupCount; ++group) {
-				for (KAFFINITY mask = proc->Processor.GroupMask[group].Mask; mask != 0; mask >>= 1) {
-					concurrency += mask & 1;
-				}
-			}
-		}
-
-		i += proc->Size;
-	}
-
-	return concurrency;
+    return concurrency;
 }

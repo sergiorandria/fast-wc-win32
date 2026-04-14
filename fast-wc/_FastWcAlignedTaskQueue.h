@@ -21,7 +21,7 @@ namespace tp {
 		_FastWcAlignedTaskQueue& operator=(const _FastWcAlignedTaskQueue&) = delete;
 
 		void push(_FastWcTaskWorker&& task);
-		void pop(_FastWcTaskWorker& task);
+		void pop(_FastWcTaskWorker&& task);
 	};
 }
 

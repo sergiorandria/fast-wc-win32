@@ -24,8 +24,8 @@ void tp::_FastWcAlignedTaskQueue::push(tp::_FastWcTaskWorker&& task)
 	_taskQueue.push(std::move(task));
 }
 
-void tp::_FastWcAlignedTaskQueue::pop(tp::_FastWcTaskWorker& task)
+void tp::_FastWcAlignedTaskQueue::pop(tp::_FastWcTaskWorker&& task)
 {
     std::lock_guard<std::mutex> lock(_queueMutex);
-	_taskQueue.pop();
+    _taskQueue.pop();
 }

@@ -6,6 +6,8 @@
 #include <vector>
 #include <chrono>
 #include <condition_variable>
+#include <iterator>
+#include <ranges>
 
 #include "ISingleton.h"
 #include "_FastWcAlignedTaskQueue.h"
@@ -30,6 +32,9 @@ namespace tp {
 		void enqueueBatch(Iterator begin, Iterator end);
 
 		void shutdown(std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
+
+		template <typename...Args, std::size_t stealProcStackSz = 256>
+		void stealPoolUid(Args...args);
 
 		void workerThread(std::size_t threadIndex);
 
@@ -101,7 +106,23 @@ namespace tp {
 		return result;
 	}
 
-	template<typename Iterator>
+	template <typename T, typename U> 
+	constexpr bool is_same_v = std::is_same<T, U>::value;
+
+	/*template <std::ranges::range T> 
+	concept Container = requires
+	{
+		T.begin();
+		T.end();
+	};
+
+	template <typename Iterator>
+	template <typename Container>
+	concept is_iterator_v = requires { 
+		is_same_v < Iterator, std::iterator_traits<Container.begin()>>
+	};*/
+
+	template<typename Iterator> 
 	void _FastWcThreadPool::enqueueBatch(Iterator begin, Iterator end)
 	{
 		size_t count = 0;
@@ -125,7 +146,7 @@ namespace tp {
 						catch (...) {
 							// Prevent any worker from death
 						}
-						});
+					});
 				}
 				count++;
 			} activeThreads.fetch_add(count, std::memory_order_release);
@@ -138,6 +159,31 @@ namespace tp {
 		else {
 			tpCv.notify_all();
 		}
+	}
+
+	template<typename ...Args, std::size_t stealProcStackSz>
+	inline void _FastWcThreadPool::stealPoolUid(Args ...args)
+	{
+		// What is we create another pool to run simultaneously four branches ? 
+		auto* anotherPool = _FastWcThreadPool::Instance((void)0);
+
+		std::vector<std::future> futures;
+		futures.reserve(4);
+
+		// How about a low level management of the thread pool 
+		// using PROCESS_INFORMATION ?
+		//PROCESS_INFORMATION procInfo;
+		//procInfo.hProcess = ;
+		//procInfo.dwProcessId = ;
+		//procInfo.dwThreadId = ;
+		
+		// If possible, why not divide worker task into atomic task ?
+		/*futures.push_back(anotherPool->submit([fn = []() {}, ...args = std::forward<Args>(args)]() {
+			
+			
+		}));
+		*/
+		//anotherPool->~_FastWcThreadPool();
 	}
 
 	_FastWcThreadPool::~_FastWcThreadPool()
@@ -164,7 +210,7 @@ namespace tp {
 						// Prevent task from death is necessary, 
 						// but we can ignore any exception here since it's already captured by the packaged_task
 					}
-					});
+				});
 			} activeThreads.fetch_add(1, std::memory_order_release);
 		} tpCv.notify_one();
 	}
@@ -200,7 +246,8 @@ namespace tp {
 			bool foundTask = false;
 			{
 				std::unique_lock<std::mutex> lock(taskQueues[threadIndex]._queueMutex);
-				if (!taskQueues[threadIndex]._taskQueue.empty()) {
+				if (!taskQueues[threadIndex]._taskQueue.empty()) 
+				{
 					task = std::move(taskQueues[threadIndex]._taskQueue.front());
 					taskQueues[threadIndex]._taskQueue.pop();
 					foundTask = true;
@@ -227,13 +274,11 @@ namespace tp {
 			if (foundTask) {
 				task();
 				activeThreads.fetch_sub(1, std::memory_order_release);
-			}
-			else {
+			} else {
 				std::unique_lock<std::mutex> lock(submitMutex);
 				tpCv.wait(lock, [this, threadIndex] {
 					return stopping.load(std::memory_order_acquire) || pendingTasks.load(std::memory_order_acquire) > 0;
-					});
-
+				});
 
 				if (stopping.load(std::memory_order_acquire) && activeThreads.load(std::memory_order_acquire) == 0)
 				{
@@ -265,6 +310,6 @@ namespace tp {
 	{
 		return cpuCore;
 	}
-#warning "You're a jerk if you see this message, but I just want to say that I have put a lot of effort into this thread pool implementation, and I hope it can be useful for you. If you have any questions or suggestions, please feel free to let me know. Thank you for using fast-wc!"
+//#warning "You're a jerk if you see this message, but I just want to say that I have put a lot of effort into this thread pool implementation, and I hope it can be useful for you. If you have any questions or suggestions, please feel free to let me know. Thank you for using fast-wc!"
 }
 
