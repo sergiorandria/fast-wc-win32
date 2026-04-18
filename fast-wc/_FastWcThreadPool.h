@@ -310,6 +310,5 @@ namespace tp {
 	{
 		return cpuCore;
 	}
-//#warning "You're a jerk if you see this message, but I just want to say that I have put a lot of effort into this thread pool implementation, and I hope it can be useful for you. If you have any questions or suggestions, please feel free to let me know. Thank you for using fast-wc!"
 }
 

@@ -4,30 +4,38 @@ void display_error(LPCTSTR lpszFunction)
 // Routine Description:
 // Retrieve and output the system error message for the last-error code
 {
-    LPVOID lpMsgBuf;
-    LPVOID lpDisplayBuf;
-    DWORD dw = GetLastError();
+    const DWORD err = GetLastError();
 
-    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL, dw, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR)&lpMsgBuf, 0, NULL);
+    LPVOID lpMsgBuf = nullptr;
+    FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr,
+        err,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<LPTSTR>(&lpMsgBuf),
+        0, nullptr
+    );
 
-    lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT, (lstrlen((LPCTSTR)lpMsgBuf) + lstrlen((LPCTSTR)lpszFunction) + 40) * sizeof(TCHAR));
+    LPVOID lpDisplayBuf = LocalAlloc(
+        LMEM_ZEROINIT,
+        (lstrlen(static_cast<LPCTSTR>(lpMsgBuf))
+            + lstrlen(lpszFunction) + 50) * sizeof(TCHAR)
+    );
 
-    if (lpDisplayBuf == 0)
-    {
-        lpDisplayBuf = LocalAlloc(LMEM_ZEROINIT, (lstrlen((LPCTSTR)lpMsgBuf) + 40) * sizeof(TCHAR));
-    }
+    StringCchPrintf(
+        static_cast<LPTSTR>(lpDisplayBuf),
+        LocalSize(lpDisplayBuf) / sizeof(TCHAR),
+        TEXT("%s failed with error %lu:\n%s"),
+        lpszFunction, err, static_cast<LPCTSTR>(lpMsgBuf)
+    );
 
-    if (StringCchPrintf(
-        (LPTSTR)lpDisplayBuf, LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-        TEXT("%s failed with error code %d as follows:\n%s"), lpszFunction,
-        dw, (LPCTSTR)lpMsgBuf))
-    {
-        _tprintf(TEXT("FATAL ERROR: Unable to output error code.\n"));
-    }
+    MessageBox(nullptr,
+        static_cast<LPCTSTR>(lpDisplayBuf),
+        TEXT("Error"),
+        MB_OK | MB_ICONERROR);
 
-    _tprintf(TEXT("ERROR: %s\n"), (LPCTSTR)lpDisplayBuf);
     LocalFree(lpMsgBuf);
     LocalFree(lpDisplayBuf);
 }

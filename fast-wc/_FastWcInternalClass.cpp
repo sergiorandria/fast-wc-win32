@@ -302,20 +302,19 @@ namespace core {
         case 1:      WORD_STEP();
             } while (--n > 0); // one branch per 8 bytes instead of 1 per byte
         }
-
-
 #else 
         // prevWasSpace=true so a word at offset 0 gets counted
         std::uint32_t prevLastBit = 1u;
+		register auto dataSize = data.size();
 
-        if (data.size() >= 32)
+        if (dataSize >= 32)
         {
             const __m256i vSpace    = _mm256_set1_epi8(' ');
             const __m256i vTab      = _mm256_set1_epi8('\t');
             const __m256i vCR       = _mm256_set1_epi8('\r');
             const __m256i vLF       = _mm256_set1_epi8('\n');
 
-            for (; i + 32 <= data.size(); i += 32)
+            for (; i + 32 <= dataSize; i += 32)
             {
                 __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data.data() + i));
 
@@ -343,7 +342,8 @@ namespace core {
         }
 
         bool inWord = (prevLastBit == 0);
-        for (; i < data.size(); ++i) {
+        for (; i < dataSize; ++i) 
+        {
             const unsigned char c = data[i];
             const bool isSpace = (c == ' ') || (c == '\t') || (c == '\r') || (c == '\n');
             wCount += (!inWord && !isSpace);
