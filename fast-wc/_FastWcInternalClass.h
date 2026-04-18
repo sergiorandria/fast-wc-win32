@@ -21,8 +21,7 @@ namespace core {
 		
 		void wc();
 
-		//template <class Translation>
-		void blazinglyFastWc(/*Translation T = std::_Identity{}*/);
+		void blazinglyFastWc();
 
 		void initClass(int argc, char** argv);
 
@@ -75,20 +74,22 @@ namespace core {
 		bool countChar = false;
 		bool countByte = false;
 
-		size_t maxBytesWidth{};
-		size_t maxLinesWidth{};
-		size_t maxWordsWidth{};
-		size_t maxCharsWidth{};
+		std::size_t maxBytesWidth{};
+		std::size_t maxLinesWidth{};
+		std::size_t maxWordsWidth{};
+		std::size_t maxCharsWidth{};
 
-		size_t totalBytes{};
-		size_t totalLines{};
-		size_t totalWords{};
-		size_t totalChars{};
+		std::size_t totalBytes{};
+		std::size_t totalLines{};
+		std::size_t totalWords{};
+		std::size_t totalChars{};
 
+		bool _taskFinished = false;
 		argparse::ArgumentParser _argParser{ "fast-wc" };
 		
 		std::vector<fs::_FastWcMappedFile> _mappedFile;
 	
+		static std::once_flag taskFinishedFlag;
 		void parseArgv(int argc, char** argv);
 	};
 }

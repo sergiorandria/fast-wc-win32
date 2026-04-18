@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <array>
+#include <string> // add near other includes
 
 #include "_FastWcInternalClass.h"
 #include "_FastWcErrorDisplay.h"
@@ -9,6 +10,8 @@
 #include "_FastWcThreadPool.h"
 
 namespace core {
+    std::once_flag _FastWcInternalClass::taskFinishedFlag;
+
     void _FastWcInternalClass::parseArgv(int argc, char** argv)
     {
         _argParser.parse_args(argc, argv);
@@ -213,6 +216,8 @@ namespace core {
         maxWordsWidth = 0;
         maxBytesWidth = 0;
 		maxCharsWidth = 0;
+
+		_taskFinished = true;
 
         for (const auto& acc : accumulators) {
             totalLines += acc.total_line;
@@ -806,11 +811,23 @@ namespace core {
 
 #endif // __AVX512F__
 
+#define BLOCK_CHECK_WORKER_TERMINATION(func_name) \
+    do {                                           \
+        std::call_once(taskFinishedFlag, [&]() {   \
+            if (!_taskFinished) {                  \
+                throw std::logic_error(            \
+                    std::string(func_name) +       \
+                    " should only be called after counting tasks are finished."); \
+            }                                      \
+        });                                        \
+    } while (0)
     /**
    * @brief Returns the total number of words counted.
    * @return size_t Total words.
    */
     [[nodiscard]] __FORCE_INLINE std::size_t _FastWcInternalClass::getTotalWord() const noexcept {
+		BLOCK_CHECK_WORKER_TERMINATION("getTotalWord()");
+        
         return totalWords;
     }
 
@@ -819,6 +836,8 @@ namespace core {
      * @return size_t Total lines.
      */
     [[nodiscard]] __FORCE_INLINE std::size_t _FastWcInternalClass::getTotalLine() const noexcept {
+		BLOCK_CHECK_WORKER_TERMINATION("getTotalLine()");
+        
         return totalLines;
     }
 
@@ -829,6 +848,8 @@ namespace core {
     [[nodiscard]] __FORCE_INLINE std::size_t _FastWcInternalClass::getTotalChar() const noexcept {
         // Assure first that every worker have stopped working
         // at the function call, can be a performance bottleneck
+		BLOCK_CHECK_WORKER_TERMINATION("getTotalChar()");
+
         return totalChars;
     }
 
@@ -837,6 +858,8 @@ namespace core {
      * @return size_t Total bytes.
      */
     [[nodiscard]] __FORCE_INLINE std::size_t _FastWcInternalClass::getTotalBytes() const noexcept {
+		BLOCK_CHECK_WORKER_TERMINATION("getTotalBytes()");
+        
         return totalBytes;
     }
 
