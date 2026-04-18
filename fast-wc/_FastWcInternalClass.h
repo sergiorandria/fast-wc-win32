@@ -20,7 +20,10 @@ namespace core {
 	public: 
 		
 		void wc();
-		void blazinglyFastWc();
+
+		//template <class Translation>
+		void blazinglyFastWc(/*Translation T = std::_Identity{}*/);
+
 		void initClass(int argc, char** argv);
 
 		__FORCE_INLINE std::size_t wcWord(std::size_t fileIndex = 0);
@@ -39,7 +42,7 @@ namespace core {
 		__FORCE_INLINE void printTotal() const noexcept;
 
 	private: 
-		_FastWcInternalClass() {
+		__FORCE_INLINE _FastWcInternalClass() {
 			_argParser.add_argument("-l", "--lines")
 				.action([&](const auto&) { countLine = true; })
 				.help("count lines")

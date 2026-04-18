@@ -1,8 +1,10 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <array>
 
 #include "_FastWcInternalClass.h"
+#include "_FastWcErrorDisplay.h"
 #include "_FastWcUtil.h"
 #include "_FastWcThreadPool.h"
 
@@ -79,6 +81,7 @@ namespace core {
         }
 	}
 
+    //template <class Translation>
     void _FastWcInternalClass::blazinglyFastWc()
     {
 		auto* pool = tp::_FastWcThreadPool::Instance(tp::hardware_concurrency());
@@ -229,44 +232,128 @@ namespace core {
         parseArgv(argc, argv);
     }
 
+	
+
+#ifdef DUFF_DEVICE 
+	// Switch implementation to use Duff's device for the tail processing of wcWord.
+	// TODO: Benchmark this against the current implementation to see if it provides a performance boost.
+
+#define CAST_UCHAR(c) (static_cast<unsigned char>(c))
+#define IS_SPACE(c) (kIsSpace[CAST_UCHAR(c)])
+    using _BoolArray = std::array<bool, 256>;
+
+    static constexpr _BoolArray make_kIsSpace() {
+        _BoolArray __local_array{};
+        __local_array[CAST_UCHAR(' ')]  = true;
+        __local_array[CAST_UCHAR('\t')] = true;
+        __local_array[CAST_UCHAR('\r')] = true;
+        __local_array[CAST_UCHAR('\n')] = true;
+        return __local_array;
+    }
+
+	// Check if a given character is a whitespace character (space, tab, carriage return, newline).
+    alignas(64) static constexpr _BoolArray kIsSpace = make_kIsSpace();
+
+    // The repeated body — keeps Duff's switch readable
+#define WORD_STEP()                                             \
+    do {                                                        \
+        const bool s = kIsSpace[(unsigned char)data[i++]];      \
+        wCount += ((!inWord) & (!s));                           \
+        inWord = !s;                                            \
+    } while(0)
+
+#endif // DUFF_DEVICE
+    
     std::size_t _FastWcInternalClass::wcWord(std::size_t fileIndex)
     {
         if (_mappedFile.empty() || !_mappedFile[fileIndex].valid())
         {
-            return 0;
+            display_error(TEXT("_mappedFile: file is empty or index is invalid"));
+            ExitProcess(EXIT_FAILURE);  // Hard exit, no unwinding
         }
 
         auto data = _mappedFile[fileIndex].as_span();
         if (data.size() == 0)
         {
-            return 0;
+            display_error(TEXT("_mappedFile: mapped region has zero size"));
+            ExitProcess(EXIT_FAILURE);
         }
-        std::string_view str(data.data(), data.size());
-
+        
         std::size_t wCount = 0;
-        std::size_t pos = 0;
-        while (true)
+        std::size_t i = 0;
+
+#ifdef DUFF_DEVICE
+		bool inWord = false;
+
+        std::size_t n = (data.size() + 7) / 8;   // ceil(size / 8) iterations
+
+        // Jump directly into the unrolled body to handle the remainder first,
+        // then spin through full 8-step chunks until exhausted.
+        switch (data.size() % 8)
         {
-            pos = str.find_first_not_of(" \r\n\t", pos);
-            if (pos == std::string_view::npos)
-            {
-                break;
-            }
+        case 0: do {
+            WORD_STEP();
+        case 7:      WORD_STEP();
+        case 6:      WORD_STEP();
+        case 5:      WORD_STEP();
+        case 4:      WORD_STEP();
+        case 3:      WORD_STEP();
+        case 2:      WORD_STEP();
+        case 1:      WORD_STEP();
+            } while (--n > 0); // one branch per 8 bytes instead of 1 per byte
+        }
 
-            ++wCount;
 
-            pos = str.find_first_of(" \r\n\t", pos);
-            if (pos == std::string_view::npos)
+#else 
+        // prevWasSpace=true so a word at offset 0 gets counted
+        std::uint32_t prevLastBit = 1u;
+
+        if (data.size() >= 32)
+        {
+            const __m256i vSpace    = _mm256_set1_epi8(' ');
+            const __m256i vTab      = _mm256_set1_epi8('\t');
+            const __m256i vCR       = _mm256_set1_epi8('\r');
+            const __m256i vLF       = _mm256_set1_epi8('\n');
+
+            for (; i + 32 <= data.size(); i += 32)
             {
-                break;
+                __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data.data() + i));
+
+                // Build a whitespace mask: 0xFF per byte if whitespace, else 0x00
+                __m256i isSpace = _mm256_or_si256(
+                    _mm256_or_si256(_mm256_cmpeq_epi8(chunk, vSpace),
+                    _mm256_cmpeq_epi8(chunk, vTab)),
+                    _mm256_or_si256(_mm256_cmpeq_epi8(chunk, vCR),
+                    _mm256_cmpeq_epi8(chunk, vLF))
+                );
+
+                // Collapse to 1 bit per byte
+                const std::uint32_t spaceMask = static_cast<std::uint32_t>(_mm256_movemask_epi8(isSpace));
+
+                // Shift in the previous chunk's last bit to detect cross-chunk boundaries
+                // prevSpaceMask[i] = spaceMask[i-1], with bit 0 = last char of previous chunk
+                const std::uint64_t shifted = (static_cast<std::uint64_t>(spaceMask) << 1) | prevLastBit;
+                const std::uint32_t prevSpaceMask = static_cast<std::uint32_t>(shifted);
+
+                const std::uint32_t wordStarts = prevSpaceMask & ~spaceMask;
+                wCount += std::popcount(wordStarts);
+
+                prevLastBit = (spaceMask >> 31) & 1u;
             }
         }
 
+        bool inWord = (prevLastBit == 0);
+        for (; i < data.size(); ++i) {
+            const unsigned char c = data[i];
+            const bool isSpace = (c == ' ') || (c == '\t') || (c == '\r') || (c == '\n');
+            wCount += (!inWord && !isSpace);
+            inWord = !isSpace;
+        }
+#endif // DUFF_DEVICE
         return wCount;
     }
 
 #ifdef __AVX512F__
-    [[gnu::target("avx512f")]]
         // Using AVX512
         // Slightly better (Use inline assembly)
 
@@ -285,8 +372,7 @@ namespace core {
          * @note Requires CPU with AVX512F support. Returns 0 if the mapped file
          *       is invalid or empty.
          */
-		template <std::size_t ClassSize>
-        __FORCE_INLINE std::size_t _FastWcInternalClass<ClassSize>::wcLine(size_t f_idx = 0) noexcept {
+        __FORCE_INLINE std::size_t _FastWcInternalClass::wcLine(size_t f_idx = 0) noexcept {
         if (_mappedFile.empty() || !_mappedFile[f_idx].valid()) {
             return 0;
         }
@@ -512,46 +598,44 @@ namespace core {
      *
      * @note Requires CPU with AVX512F support.
      */
-    [[gnu::target("avx512f")]]
-    __FORCE_INLINE size_t __wc_char_m(Translation translation = std::identity{},
-        size_t f_idx = 0) noexcept {
-        if (mapped_file.empty() || !mapped_file[f_idx].valid()) {
+    __FORCE_INLINE std::size_t _FastWcInternalClass::wcCharM(std::size_t f_idx = 0) noexcept {
+        if (_mappedFile.empty() || !_mappedFile[f_idx].valid()) {
             return 0;
         }
 
-        auto __data = mapped_file[f_idx].as_span();
-        const char* ptr = __data.data();
-        const char* end = ptr + __data.size();
-        size_t char_count = 0;
+        auto data = _mappedFile[f_idx].as_span();
+        const char* ptr = data.data();
+        const char* end = ptr + data.size();
+        std::size_t charCount = 0;
 
         // UTF-8 continuation bytes: 10xxxxxx (top 2 bits = 10)
-        const __m512i continuation_mask = _mm512_set1_epi8(0xC0);    // 11000000
-        const __m512i continuation_pattern = _mm512_set1_epi8(0x80); // 10000000
+        const __m512i continuationMask = _mm512_set1_epi8(0xC0);    // 11000000
+        const __m512i continuationPattern = _mm512_set1_epi8(0x80); // 10000000
 
-        while (LIKELY(ptr + 64 <= end)) {
+        while (ptr + 64 <= end) {
             __builtin_prefetch(ptr + 128, 0, 0);
             __m512i chunk =
                 _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr));
 
             // Mask to get top 2 bits of each byte
-            __m512i masked = _mm512_and_si512(chunk, continuation_mask);
+            __m512i masked = _mm512_and_si512(chunk, continuationMask);
 
             // Compare with continuation pattern (10xxxxxx)
             __mmask64 is_continuation =
-                _mm512_cmpeq_epi8_mask(masked, continuation_pattern);
+                _mm512_cmpeq_epi8_mask(masked, continuationPattern);
 
             // Count non-continuation bytes (these are character starts)
-            char_count += 64 - __builtin_popcountll(is_continuation);
+            charCount += 64 - __builtin_popcountll(is_continuation);
             ptr += 64;
         }
 
         // Handle remainder
         while (LIKELY(ptr < end)) {
-            char_count += ((*ptr & 0xC0) != 0x80);
+            charCount += ((*ptr & 0xC0) != 0x80);
             ptr++;
         }
 
-        return char_count;
+        return charCount;
     }
 
 #elif defined(__AVX2__)
@@ -642,29 +726,21 @@ namespace core {
         const char* ptr = data.data();
         const char* end = ptr + data.size();
         std::size_t charCount = 0;
+
+        // Optimizations:
+        // 1. Use a single mask and pattern for the entire loop
         const __m128i continuation_mask = _mm_set1_epi8(0xC0);
         const __m128i continuation_pattern = _mm_set1_epi8(0x80);
 
-        while (ptr + 16 <= end) [[likely]] 
-        {
+        // 2. Use a single _mm_cmpistri intrinsic to count the characters
+        while (ptr + 16 <= end) [[likely]] {
             __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ptr));
-            __m128i masked = _mm_and_si128(chunk, continuation_mask);
-            __m128i is_continuation = _mm_cmpeq_epi8(masked, continuation_pattern);
-            
-            // is_continuation bytes are 0xFF (-1) for continuations, 0x00 for non-continuations.
-            // Subtracting from zero: negate to get +1 per continuation byte.
-            // Then horizontally sum to count them.
-            __m128i ones = _mm_sub_epi8(_mm_setzero_si128(), is_continuation); // 0x01 per continuation
-
-            // Horizontal sum of 16 bytes using SSE2 SAD trick
-            __m128i sum = _mm_sad_epu8(ones, _mm_setzero_si128()); // sums into two 64-bit lanes
-            int continuations = _mm_cvtsi128_si32(sum)                   // lower lane
-                + _mm_cvtsi128_si32(_mm_srli_si128(sum, 8)); // upper lane
-
-            charCount += 16 - continuations;
+            int count = _mm_cmpistri(continuation_pattern, chunk, _SIDD_UBYTE_OPS | _SIDD_CMP_EQUAL_ANY | _SIDD_NEGATIVE_POLARITY);
+            charCount += 16 - count;
             ptr += 16;
         }
 
+        // 3. Use a simple loop for the remaining bytes
         while (ptr < end) [[likely]] {
             charCount += ((*ptr & 0xC0) != 0x80);
             ptr++;
@@ -751,6 +827,8 @@ namespace core {
      * @return size_t Total characters.
      */
     [[nodiscard]] __FORCE_INLINE std::size_t _FastWcInternalClass::getTotalChar() const noexcept {
+        // Assure first that every worker have stopped working
+        // at the function call, can be a performance bottleneck
         return totalChars;
     }
 
@@ -770,17 +848,24 @@ namespace core {
      * (count_line, count_word, count_char, count_bytes) are printed.
      */
     __FORCE_INLINE void _FastWcInternalClass::printTotal() const noexcept {
+        //HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        
+		//SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
         for (const auto& file : _mappedFile) {
             if (countLine) {
+                //SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
                 std::cout << std::setw(maxLinesWidth) << file.getLineCnt() << ' ';
             }
             if (countWord) {
+                //SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_INTENSITY);
                 std::cout << std::setw(maxWordsWidth) << file.getWordCnt() << ' ';
             }
             if (countChar) {
+                //SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
                 std::cout << std::setw(maxCharsWidth) << file.getCharCnt() << ' ';
             }
             if (countByte) {
+                //SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
                 std::cout << std::setw(maxBytesWidth) << file.getBytesCnt() << ' ';
             }
             std::cout << file.filename() << std::endl;
