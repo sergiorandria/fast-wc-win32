@@ -2,10 +2,6 @@
 
 #define PROJ_PATH L"C:\\Users\\sergi\\source\\repos\\fast-wc\\fast-wc"
 
-// tp
-#define ASSERT_DECAY_EQUAL(T, DecayedType) static_assert(is_decay_equal<T, DecayedType>, "Type does not decay to the expected type.") 
-#define ASSERT_TASK_FITS(Callable) static_assert(sizeof(std::decay_t<Callable>) <= FAST_WC_TASK_WORKER_SIZE, "Callable is too large to fit in the task worker.")
-
 #define TASK_WORKER_ASSERTIONS_ENABLED 
 
 #ifdef _GNU

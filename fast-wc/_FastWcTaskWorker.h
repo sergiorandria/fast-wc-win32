@@ -44,9 +44,6 @@ namespace tp {
 	{
 		using DecayedCallable = std::decay_t<Callable>;
 
-		//ASSERT_DECAY_EQUAL(task, DecayedCallable); 
-		//ASSERT_TASK_FITS(task);
-
 		new (_taskData) DecayedCallable(std::forward<Callable>(task));
 		_taskInvoke = [](void* data) -> void {
 			(*reinterpret_cast<DecayedCallable*>(data))();
