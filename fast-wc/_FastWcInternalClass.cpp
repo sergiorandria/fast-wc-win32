@@ -8,6 +8,7 @@
 #include "_FastWcErrorDisplay.h"
 #include "_FastWcUtil.h"
 #include "_FastWcThreadPool.h"
+#include "_FastWcConsoleColor.h"
 
 namespace core {
     std::once_flag _FastWcInternalClass::taskFinishedFlag;
@@ -310,7 +311,7 @@ namespace core {
 #else 
         // prevWasSpace=true so a word at offset 0 gets counted
         std::uint32_t prevLastBit = 1u;
-		register auto dataSize = data.size();
+		auto dataSize = data.size();
 
         if (dataSize >= 32)
         {
@@ -863,6 +864,39 @@ namespace core {
         return totalBytes;
     }
 
+
+
+#if __cplusplus < 201402L
+    auto mark(const std::string& str, std::string color) -> decltype(dye::vanilla(""))
+#else
+    auto mark(const std::string& str, std::string color)
+#endif
+    {
+        std::istringstream iss(str);
+        auto marked = dye::vanilla("");
+		// TODO: Implement mark logic, coloring the string based on the specified color.
+        return marked;
+    }
+
+    void _FastWcInternalClass::printHeader() const
+    {
+        std::cout << std::left;
+        if (countLine) {
+            std::cout << std::setw(maxLinesWidth) << dye::green_on_aqua("Lines") << ' ';
+        }
+        if (countWord) {
+            std::cout << std::setw(maxWordsWidth) << dye::green_on_aqua("Words") << ' ';
+        }
+        if (countChar) {
+            std::cout << std::setw(maxCharsWidth) << dye::green_on_aqua("Chars") << ' ';
+        }
+        if (countByte) {
+            std::cout << std::setw(maxBytesWidth) << dye::green_on_aqua("Bytes") << ' ';
+        }
+
+		std::cout << dye::green_on_aqua("File") << std::endl;
+    }
+
     /**
      * @brief Prints the counts (lines, words, characters, bytes) for each mapped
      * file and the total.
@@ -871,39 +905,34 @@ namespace core {
      * (count_line, count_word, count_char, count_bytes) are printed.
      */
     __FORCE_INLINE void _FastWcInternalClass::printTotal() const noexcept {
-        //HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-        
-		//SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+        printHeader();
+
         for (const auto& file : _mappedFile) {
             if (countLine) {
-                //SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-                std::cout << std::setw(maxLinesWidth) << file.getLineCnt() << ' ';
+                std::cout << std::setw(maxLinesWidth+1) << file.getLineCnt() << ' ';
             }
             if (countWord) {
-                //SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_INTENSITY);
-                std::cout << std::setw(maxWordsWidth) << file.getWordCnt() << ' ';
+                std::cout << std::setw(maxWordsWidth+1) << file.getWordCnt() << ' ';
             }
             if (countChar) {
-                //SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
-                std::cout << std::setw(maxCharsWidth) << file.getCharCnt() << ' ';
+                std::cout << std::setw(maxCharsWidth+1) << file.getCharCnt() << ' ';
             }
             if (countByte) {
-                //SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-                std::cout << std::setw(maxBytesWidth) << file.getBytesCnt() << ' ';
+                std::cout << std::setw(maxBytesWidth+1) << file.getBytesCnt() << ' ';
             }
             std::cout << file.filename() << std::endl;
         }
         if (countLine) {
-            std::cout << std::setw(maxLinesWidth) << totalLines << ' ';
+            std::cout << std::setw(maxLinesWidth+1) << totalLines << ' ';
         }
         if (countWord) {
-            std::cout << std::setw(maxWordsWidth) << totalWords << ' ';
+            std::cout << std::setw(maxWordsWidth+1) << totalWords << ' ';
         }
         if (countChar) {
-            std::cout << std::setw(maxCharsWidth) << totalChars << ' ';
+            std::cout << std::setw(maxCharsWidth+1) << totalChars << ' ';
         }
         if (countByte) {
-            std::cout << std::setw(maxBytesWidth) << totalBytes << ' ';
+            std::cout << std::setw(maxBytesWidth+1) << totalBytes << ' ';
         }
         std::cout << "total" << std::endl;
     }

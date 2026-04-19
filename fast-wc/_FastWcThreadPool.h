@@ -85,7 +85,7 @@ namespace tp {
 				throw std::runtime_error("ThreadPool is stopping, cannot submit new tasks.");
 			}
 
-			size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % cpuCore;
+			std::size_t taskQueueIndex = nextQueueIndex.fetch_add(1, std::memory_order_relaxed) % cpuCore;
 			{
 				std::unique_lock<std::mutex> lock(taskQueues[taskQueueIndex]._queueMutex);
 				taskQueues[taskQueueIndex]._taskQueue.emplace(
@@ -108,19 +108,6 @@ namespace tp {
 
 	template <typename T, typename U> 
 	constexpr bool is_same_v = std::is_same<T, U>::value;
-
-	/*template <std::ranges::range T> 
-	concept Container = requires
-	{
-		T.begin();
-		T.end();
-	};
-
-	template <typename Iterator>
-	template <typename Container>
-	concept is_iterator_v = requires { 
-		is_same_v < Iterator, std::iterator_traits<Container.begin()>>
-	};*/
 
 	template<typename Iterator> 
 	void _FastWcThreadPool::enqueueBatch(Iterator begin, Iterator end)

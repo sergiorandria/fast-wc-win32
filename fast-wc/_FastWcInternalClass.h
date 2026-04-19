@@ -38,6 +38,7 @@ namespace core {
 
 		__FORCE_INLINE std::size_t getTotalBytes() const noexcept;
 		
+		void printHeader() const;
 		__FORCE_INLINE void printTotal() const noexcept;
 
 	private: 

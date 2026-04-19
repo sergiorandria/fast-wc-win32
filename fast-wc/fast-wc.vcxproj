@@ -145,6 +145,7 @@
   <ItemGroup>
     <ClInclude Include="_FastWcArgParser.h" />
     <ClInclude Include="_FastWcAlignedTaskQueue.h" />
+    <ClInclude Include="_FastWcConsoleColor.h" />
     <ClInclude Include="_FastWcErrorDisplay.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="_FastWcMappedFile.h" />
