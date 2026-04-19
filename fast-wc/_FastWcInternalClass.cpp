@@ -274,14 +274,14 @@ namespace core {
     {
         if (_mappedFile.empty() || !_mappedFile[fileIndex].valid())
         {
-            display_error(TEXT("_mappedFile: file is empty or index is invalid"));
+            _FastWcErrorDisplay(TEXT("_mappedFile: file is empty or index is invalid"));
             ExitProcess(EXIT_FAILURE);  // Hard exit, no unwinding
         }
 
         auto data = _mappedFile[fileIndex].as_span();
         if (data.size() == 0)
         {
-            display_error(TEXT("_mappedFile: mapped region has zero size"));
+            _FastWcErrorDisplay(TEXT("_mappedFile: mapped region has zero size"));
             ExitProcess(EXIT_FAILURE);
         }
         

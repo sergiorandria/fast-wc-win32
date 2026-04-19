@@ -1,6 +1,6 @@
 #include "_FastWcErrorDisplay.h"
 
-void display_error(LPCTSTR lpszFunction)
+void _FastWcErrorDisplay(LPCTSTR lpszFunction)
 // Routine Description:
 // Retrieve and output the system error message for the last-error code
 {

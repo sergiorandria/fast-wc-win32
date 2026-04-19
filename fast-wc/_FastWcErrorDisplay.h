@@ -5,5 +5,8 @@
 #include <strsafe.h>
 #include <tchar.h>
 
-void display_error(LPCTSTR lpszFunction);
+void _FastWcErrorDisplay(LPCTSTR lpszFunction);
+
+#pragma weak __FastWcErrorDisplay
+#pragma weak ___FastWcErrorDisplay 
 

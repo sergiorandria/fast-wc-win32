@@ -3,10 +3,11 @@
 #include "_FastWcMappedFile.h"
 #include "_FastWcErrorDisplay.h"
 
+std::once_flag fs::_FastWcMappedFile::_checkValidityFlag;
+
 fs::_FastWcMappedFile::_FastWcMappedFile()
 : filenameInfo(""), isStdIn(true), mode(_FastWcMappedFileMode::UseMapping) 
 {
-    // Read all stdin into memory
     std::vector<char> buffer;
     constexpr size_t chunk_size = 8192; // 8KB chunks
     char temp_buf[chunk_size];
@@ -30,9 +31,14 @@ fs::_FastWcMappedFile::_FastWcMappedFile()
 }
 
 fs::_FastWcMappedFile::_FastWcMappedFile(const std::string& filename)
-	: filenameInfo(filename)
+	: filenameInfo(filename), isStdIn(false)
 {
-
+    hFile = CreateFileA(filename.c_str(), FILE_READ_ACCESS, NULL, NULL, NULL, NULL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        _FastWcErrorDisplay(L"mm_file constructor(): CreateFileA"); 
+        std::abort();
+    }
 }
 
 fs::_FastWcMappedFile::_FastWcMappedFile(std::string_view filename, _FastWcMappedFileMode mode)
@@ -45,7 +51,7 @@ fs::_FastWcMappedFile::_FastWcMappedFile(std::string_view filename, _FastWcMappe
 
         if (hFile == INVALID_HANDLE_VALUE) 
         {
-            display_error(TEXT("CreateFileA"));
+            _FastWcErrorDisplay(TEXT("CreateFileA"));
             return;
         }
 
@@ -53,7 +59,7 @@ fs::_FastWcMappedFile::_FastWcMappedFile(std::string_view filename, _FastWcMappe
 
         if (!GetFileSizeEx(hFile, &fileSize)) 
         {
-            display_error(TEXT("GetFileSizeEx"));
+            _FastWcErrorDisplay(TEXT("GetFileSizeEx"));
             CloseHandle(hFile);
             hFile = INVALID_HANDLE_VALUE;
             return;
@@ -72,7 +78,7 @@ fs::_FastWcMappedFile::_FastWcMappedFile(std::string_view filename, _FastWcMappe
 
         if (hMapping == nullptr) 
         {
-            display_error(TEXT("CreateFileMappingA"));
+            _FastWcErrorDisplay(TEXT("CreateFileMappingA"));
             CloseHandle(hFile);
             hFile = INVALID_HANDLE_VALUE;
             return;
@@ -82,7 +88,7 @@ fs::_FastWcMappedFile::_FastWcMappedFile(std::string_view filename, _FastWcMappe
 
         if (data == nullptr) 
         {
-            display_error(TEXT("MapViewOfFile"));
+            _FastWcErrorDisplay(TEXT("MapViewOfFile"));
             CloseHandle(hMapping);
             CloseHandle(hFile);
             hMapping = INVALID_HANDLE_VALUE;
@@ -96,20 +102,20 @@ fs::_FastWcMappedFile::_FastWcMappedFile(std::string_view filename, _FastWcMappe
                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (hFile == INVALID_HANDLE_VALUE) 
         {
-            display_error(TEXT("CreateFileA"));
+            _FastWcErrorDisplay(TEXT("CreateFileA"));
             return;
         }
 
         LARGE_INTEGER fileSize;
         if (!GetFileSizeEx(hFile, &fileSize)) 
         {
-            display_error(TEXT("GetFileSizeEx"));
+            _FastWcErrorDisplay(TEXT("GetFileSizeEx"));
             CloseHandle(hFile);
             hFile = INVALID_HANDLE_VALUE;
             return;
         }
 
-        dataSize = static_cast<size_t>(fileSize.QuadPart);
+        dataSize = static_cast<std::size_t>(fileSize.QuadPart);
         if (dataSize == 0) 
         {
             CloseHandle(hFile);
@@ -166,6 +172,28 @@ fs::_FastWcMappedFile& fs::_FastWcMappedFile::operator=(_FastWcMappedFile&& othe
     }
 
     return *this;
+}
+
+char fs::_FastWcMappedFile::operator[](std::size_t __idx) const
+{
+    if (__idx >= 0 && __idx < this->size())
+    {
+        _FastWcErrorDisplay(L"operator[] : index");
+        std::abort(); 
+    }
+
+    std::call_once(_checkValidityFlag, [&]() {
+        if (!valid())
+        {
+            _FastWcErrorDisplay(L"operator[] : index");
+            std::abort();
+        }
+        });
+
+    auto data = this->as_span(); 
+    auto* _data = data.data();
+
+    return _data[__idx];
 }
 
 fs::_FastWcMappedFile::~_FastWcMappedFile()
