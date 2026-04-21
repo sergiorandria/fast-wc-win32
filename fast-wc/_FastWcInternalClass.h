@@ -28,7 +28,7 @@ namespace core {
 		__FORCE_INLINE std::size_t wcWord(std::size_t fileIndex = 0);
 		__FORCE_INLINE std::size_t wcLine(std::size_t f_idx) noexcept;
 		__FORCE_INLINE std::size_t wcCharC(size_t f_idx);
-		__FORCE_INLINE std::size_t wcCharM(std::size_t f_idx);
+		__FORCE_INLINE std::size_t wcCharM(std::size_t f_idx) noexcept;
 
 		__FORCE_INLINE std::size_t getTotalWord() const noexcept;
 

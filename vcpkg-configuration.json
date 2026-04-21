@@ -1,0 +1,7 @@
+{
+  "name": "fast-wc",
+  "version": "0.1.0",
+  "dependencies": [
+    "openssl"
+  ]
+}

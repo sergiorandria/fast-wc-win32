@@ -36,7 +36,7 @@ fs::_FastWcMappedFile::_FastWcMappedFile(const std::string& filename)
     hFile = CreateFileA(filename.c_str(), FILE_READ_ACCESS, NULL, NULL, NULL, NULL, NULL);
     if (hFile == INVALID_HANDLE_VALUE)
     {
-        _FastWcErrorDisplay(L"mm_file constructor(): CreateFileA"); 
+        _FastWcErrorDisplay("mm_file constructor(): CreateFileA"); 
         std::abort();
     }
 }
@@ -178,14 +178,14 @@ char fs::_FastWcMappedFile::operator[](std::size_t __idx) const
 {
     if (__idx >= 0 && __idx < this->size())
     {
-        _FastWcErrorDisplay(L"operator[] : index");
+        _FastWcErrorDisplay("operator[] : index");
         std::abort(); 
     }
 
     std::call_once(_checkValidityFlag, [&]() {
         if (!valid())
         {
-            _FastWcErrorDisplay(L"operator[] : index");
+            _FastWcErrorDisplay("operator[] : index");
             std::abort();
         }
         });
