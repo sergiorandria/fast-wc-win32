@@ -46,7 +46,7 @@ namespace tp {
 		char& operator[](std::size_t index);
 		const char& operator[](std::size_t index) const;
 
-		void verifyTaskDataIntegrity();
+		bool verifyTaskDataIntegrity();
 		void encryptTaskDataMem();
 		void decryptTaskDataMem();
 	};

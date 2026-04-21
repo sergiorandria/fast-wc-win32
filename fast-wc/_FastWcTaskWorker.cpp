@@ -72,9 +72,52 @@ namespace tp {
         return _taskData[index];
     }
 
-    void _FastWcTaskWorker::verifyTaskDataIntegrity()
+    bool _FastWcTaskWorker::verifyTaskDataIntegrity()
     {
-        // TODO: implement this to spot garbage inside _taskData
+        auto key = _cryptoState.key.data(); 
+        auto iv = _cryptoState.iv.data();
+
+        // If encrypt is called
+        if (_cryptoState.valid)
+        {
+            // Trying to decrypt _taskData 
+            const unsigned char* src = reinterpret_cast<const unsigned char*>(_taskData);
+
+            crypto::EvpCtxPtr ctx = crypto::make_evp_ctx();
+            
+            if (EVP_DecryptInit_ex(ctx.get(),
+                EVP_aes_256_cbc(),
+                nullptr,
+                key,
+                iv) != 1)
+            {
+                throw std::runtime_error("EVP_DecryptInit_ex failed: " + crypto::ssl_error_string());
+            }
+
+            const unsigned char* ciphertextPtr = src + crypto::AES_IV_SIZE;
+            const std::size_t    ciphertextSize = FAST_WC_TASK_WORKER_SIZE - crypto::AES_IV_SIZE;
+            
+            std::vector<unsigned char> plaintext(ciphertextSize + EVP_MAX_BLOCK_LENGTH);
+            int len = 0;
+            int totalLen = 0;
+            
+            if (EVP_DecryptUpdate(ctx.get(),
+                plaintext.data(),
+                &len,
+                ciphertextPtr,
+                static_cast<int>(ciphertextSize)) != 1)
+            {
+                return false;
+            }
+
+            if (EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + len, &len) != 1)
+            {
+                // Wrong key, corrupted data, or bad padding ,all surface here
+                return false;
+            }
+
+            return true;
+        }
     }
 
      // The iv is prepended to the ciphertext so decrypt() is self-contained.
@@ -150,12 +193,9 @@ namespace tp {
                 "decryptTaskDataMem: no valid crypto state — was encryptTaskDataMem called?");
         }
 
-        if (FAST_WC_TASK_WORKER_SIZE <= crypto::AES_IV_SIZE)
-        {
-            throw std::runtime_error("decryptTaskDataMem: buffer too small to contain IV + ciphertext");
-        }
+        static_assert(FAST_WC_TASK_WORKER_SIZE > crypto::AES_IV_SIZE, 
+            "AES_IV_SIZE is greater than fast wc than FAST_WC_TASK_WORKER_SIZE");
 
- 
         // The IV was prepended by encryptTaskDataMem.
         // We read it back here instead of trusting _cryptoState.iv
         // so that the layout is always the single source of truth.
