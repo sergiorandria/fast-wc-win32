@@ -148,6 +148,7 @@
   <ItemGroup>
     <ClCompile Include="fast-wc.cpp" />
     <ClCompile Include="_FastWcAlignedTaskQueue.cpp" />
+    <ClCompile Include="_FastWcCapabilityToken.cpp" />
     <ClCompile Include="_FastWcCryptoState.cpp" />
     <ClCompile Include="_FastWcErrorDisplay.cpp" />
     <ClCompile Include="_FastWcInternalClass.cpp" />
@@ -158,11 +159,13 @@
   <ItemGroup>
     <ClInclude Include="_FastWcArgParser.h" />
     <ClInclude Include="_FastWcAlignedTaskQueue.h" />
+    <ClInclude Include="_FastWcCapabilityToken.h" />
     <ClInclude Include="_FastWcConsoleColor.h" />
     <ClInclude Include="_FastWcCryptoState.h" />
     <ClInclude Include="_FastWcErrorDisplay.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="_FastWcMappedFile.h" />
+    <ClInclude Include="_FastWcTaskConcept.h" />
     <ClInclude Include="_FastWcTaskWorker.h" />
     <ClInclude Include="_FastWcThreadPool.h" />
     <ClInclude Include="_FastWcUtil.h" />

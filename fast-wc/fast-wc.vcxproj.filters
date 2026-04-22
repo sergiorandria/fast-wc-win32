@@ -39,6 +39,9 @@
     <ClCompile Include="_FastWcCryptoState.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="_FastWcCapabilityToken.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="_FastWcInternalClass.h">
@@ -78,6 +81,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="_FastWcCryptoState.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="_FastWcCapabilityToken.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="_FastWcTaskConcept.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

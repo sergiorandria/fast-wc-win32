@@ -92,6 +92,10 @@ namespace core {
 		const std::size_t numFiles = _mappedFile.size();
         const std::size_t numThread = pool->threadCount(); 
         
+        // Issue one reusable token for the lifetime of this call.
+        // High tier: these are trusted internal tasks, not external input.
+        auto token = _tokenAuthority.issue(tp::_FastWcPrivilegeTier::High);
+
         // Handle single file case, no parallelization needed
         // (Can be a performance skyrocket)
         if (numFiles == 1) {
@@ -163,6 +167,7 @@ namespace core {
             std::size_t thread_idx = (chunk_start / chunk_size) % numThread;
             
             futures.push_back(pool->submit(
+                token,
                 [&, chunk_start, chunk_end, thread_idx]() {
                     auto& acc = accumulators[thread_idx];
                     for (std::size_t i = chunk_start; i < chunk_end; ++i) {

@@ -8,6 +8,7 @@
 #include "_ProjMacro.h"
 #include "_FastWcMappedFile.h"
 #include "_FastWcArgParser.h"
+#include "_FastWcCapabilityToken.h"
 
 #ifndef UNICODE 
 #define UNICODE
@@ -89,7 +90,8 @@ namespace core {
 		argparse::ArgumentParser _argParser{ "fast-wc" };
 		
 		std::vector<fs::_FastWcMappedFile> _mappedFile;
-	
+		tp::_FastWcTokenAuthority _tokenAuthority;
+
 		static std::once_flag taskFinishedFlag;
 		void parseArgv(int argc, char** argv);
 	};

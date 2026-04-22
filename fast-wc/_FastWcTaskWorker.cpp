@@ -38,7 +38,7 @@ namespace tp {
         _taskInvoke = std::exchange(obj._taskInvoke, nullptr);
         _taskMove = std::exchange(obj._taskMove, nullptr);
         _taskCleanup = std::exchange(obj._taskCleanup, nullptr);
-        encryptTaskDataMem();
+        //encryptTaskDataMem();
     }
 
     _FastWcTaskWorker& _FastWcTaskWorker::operator=(_FastWcTaskWorker&& obj) noexcept {
@@ -51,7 +51,7 @@ namespace tp {
             _taskInvoke = std::exchange(obj._taskInvoke, nullptr);
             _taskMove = std::exchange(obj._taskMove, nullptr);
             _taskCleanup = std::exchange(obj._taskCleanup, nullptr);
-            encryptTaskDataMem();
+            //encryptTaskDataMem();
             
         }
 
@@ -59,9 +59,9 @@ namespace tp {
     }
 
     void _FastWcTaskWorker::operator()() {
-        decryptTaskDataMem();
+        //decryptTaskDataMem();
         _taskInvoke(const_cast<void*>(static_cast<const void*>(_taskData)));
-        encryptTaskDataMem();
+        //encryptTaskDataMem();
     }
 
     _FastWcTaskWorker::operator bool() const noexcept {
