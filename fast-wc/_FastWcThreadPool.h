@@ -16,19 +16,19 @@ namespace tp {
 	class _FastWcThreadPool : public ISingleton<_FastWcThreadPool>
 	{
 		friend class ISingleton<_FastWcThreadPool>;
-	public:  
+	public:
 		_FastWcThreadPool(const _FastWcThreadPool&) = delete;
 		_FastWcThreadPool& operator=(const _FastWcThreadPool&) = delete;
-	
-		~_FastWcThreadPool(); 
+
+		~_FastWcThreadPool();
 
 		template <typename Callable, typename... Args>
-		auto submit(Callable&& fn, Args &&...args) 
+		auto submit(Callable&& fn, Args &&...args)
 			-> std::future< typename std::invoke_result<Callable, Args...>::type>;
-	
+
 		auto enqueue(std::function<void()> task) -> void;
 
-		template <typename Iterator> 
+		template <typename Iterator>
 		void enqueueBatch(Iterator begin, Iterator end);
 
 		void shutdown(std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
@@ -36,34 +36,34 @@ namespace tp {
 		template <typename...Args, std::size_t stealProcStackSz = 256>
 		void stealPoolUid(Args...args);
 
-		void workerThread(std::size_t threadIndex);
-
 		std::size_t threadCount() const;
 
-	private: 
-		inline _FastWcThreadPool(std::size_t nCore) : cpuCore(nCore) 
+	private:
+		void workerThread(std::size_t threadIndex); 
+
+		inline _FastWcThreadPool(std::size_t nCore) : cpuCore(nCore)
 		{
-			if (nCore == 0) 
+			if (nCore == 0)
 				throw std::runtime_error("hardware_concurrency() returned 0");
-			
+
 			taskQueues.resize(nCore);
 			threads.reserve(nCore);
-			for (std::size_t i = 0; i < nCore; ++i) 
+			for (std::size_t i = 0; i < nCore; ++i)
 			{
 				threads.emplace_back(&_FastWcThreadPool::workerThread, this, i);
 			}
 		};
 
-		std::mutex submitMutex; 
-		size_t cpuCore; 
+		std::mutex submitMutex;
+		size_t cpuCore;
 		std::condition_variable tpCv;
 
-		std::vector < std::thread> threads;
-		std::vector<tp::_FastWcAlignedTaskQueue> taskQueues; 
+		std::vector<std::thread> threads;
+		std::vector<tp::_FastWcAlignedTaskQueue> taskQueues;
 		std::atomic_bool stopping = false;
 		std::atomic<std::size_t> nextQueueIndex = 0;
-		std::atomic<std::size_t> activeThreads = 0;
 		std::atomic<std::size_t> pendingTasks = 0;
+		std::atomic_bool draining = false; 
 	};
 
 	template <typename Callable, typename... Args>
@@ -91,25 +91,20 @@ namespace tp {
 				taskQueues[taskQueueIndex]._taskQueue.emplace(
 					[task]() {
 						try {
-							// The most important things here is to ensure that the task is executed 
-							// and any exception is captured by the packaged_task,
 							(*task)();
 						}
-						catch (...) {
-							// Prevent task from death is necessary, 
-							// but we can ignore any exception here since it's already captured by the packaged_task
-						}
+						catch (...) {}
 					});
-			} activeThreads.fetch_add(1, std::memory_order_release);
+			} pendingTasks.fetch_add(1, std::memory_order_release);
 		} tpCv.notify_one();
 
 		return result;
 	}
 
-	template <typename T, typename U> 
+	template <typename T, typename U>
 	constexpr bool is_same_v = std::is_same<T, U>::value;
 
-	template<typename Iterator> 
+	template<typename Iterator>
 	void _FastWcThreadPool::enqueueBatch(Iterator begin, Iterator end)
 	{
 		size_t count = 0;
@@ -130,16 +125,18 @@ namespace tp {
 						try {
 							task();
 						}
-						catch (...) {
-							// Prevent any worker from death
-						}
-					});
+						catch (...) {}
+						});
 				}
 				count++;
-			} activeThreads.fetch_add(count, std::memory_order_release);
+			} pendingTasks.fetch_add(count, std::memory_order_release);
 		}
 
-		if (count <= 1)
+		if (count == 0)
+		{
+			return;
+		}
+		else if (count == 1)
 		{
 			tpCv.notify_one();
 		}
@@ -151,26 +148,9 @@ namespace tp {
 	template<typename ...Args, std::size_t stealProcStackSz>
 	inline void _FastWcThreadPool::stealPoolUid(Args ...args)
 	{
-		// What is we create another pool to run simultaneously four branches ? 
-		auto* anotherPool = _FastWcThreadPool::Instance((void)0);
-
-		std::vector<std::future> futures;
-		futures.reserve(4);
-
-		// How about a low level management of the thread pool 
-		// using PROCESS_INFORMATION ?
-		//PROCESS_INFORMATION procInfo;
-		//procInfo.hProcess = ;
-		//procInfo.dwProcessId = ;
-		//procInfo.dwThreadId = ;
-		
-		// If possible, why not divide worker task into atomic task ?
-		/*futures.push_back(anotherPool->submit([fn = []() {}, ...args = std::forward<Args>(args)]() {
-			
-			
-		}));
-		*/
-		//anotherPool->~_FastWcThreadPool();
+		//auto* anotherPool = _FastWcThreadPool::Instance((void)0);
+		//std::vector<std::future<void>> futures;
+		//futures.reserve(4);
 	}
 
 	_FastWcThreadPool::~_FastWcThreadPool()
@@ -193,12 +173,9 @@ namespace tp {
 					try {
 						task();
 					}
-					catch (...) {
-						// Prevent task from death is necessary, 
-						// but we can ignore any exception here since it's already captured by the packaged_task
-					}
-				});
-			} activeThreads.fetch_add(1, std::memory_order_release);
+					catch (...) {}
+					});
+			} pendingTasks.fetch_add(1, std::memory_order_release);
 		} tpCv.notify_one();
 	}
 
@@ -233,7 +210,7 @@ namespace tp {
 			bool foundTask = false;
 			{
 				std::unique_lock<std::mutex> lock(taskQueues[threadIndex]._queueMutex);
-				if (!taskQueues[threadIndex]._taskQueue.empty()) 
+				if (!taskQueues[threadIndex]._taskQueue.empty())
 				{
 					task = std::move(taskQueues[threadIndex]._taskQueue.front());
 					taskQueues[threadIndex]._taskQueue.pop();
@@ -246,10 +223,10 @@ namespace tp {
 				for (std::size_t i = 1; i < cpuCore; ++i)
 				{
 					std::size_t stealFromIndex = (threadIndex + i) % cpuCore;
-					taskQueues[stealFromIndex]._queueMutex.lock();
 
-					std::unique_lock<std::mutex> lock(taskQueues[stealFromIndex]._queueMutex, std::adopt_lock);
-					if (lock.owns_lock() && !taskQueues[stealFromIndex]._taskQueue.empty()) {
+					std::unique_lock<std::mutex> lock(taskQueues[stealFromIndex]._queueMutex, std::try_to_lock);
+					if (lock.owns_lock() && !taskQueues[stealFromIndex]._taskQueue.empty())
+					{
 						task = std::move(taskQueues[stealFromIndex]._taskQueue.front());
 						taskQueues[stealFromIndex]._taskQueue.pop();
 						foundTask = true;
@@ -258,35 +235,38 @@ namespace tp {
 				}
 			}
 
-			if (foundTask) {
+			if (foundTask)
+			{
 				task();
-				activeThreads.fetch_sub(1, std::memory_order_release);
-			} else {
+				pendingTasks.fetch_sub(1, std::memory_order_release);
+			}
+			else
+			{
 				std::unique_lock<std::mutex> lock(submitMutex);
-				tpCv.wait(lock, [this, threadIndex] {
+				tpCv.wait(lock, [this] {
 					return stopping.load(std::memory_order_acquire) || pendingTasks.load(std::memory_order_acquire) > 0;
-				});
+					});
 
-				if (stopping.load(std::memory_order_acquire) && activeThreads.load(std::memory_order_acquire) == 0)
+				if (stopping.load(std::memory_order_acquire))
 				{
-					bool hasTask = true;
-
-					while (hasTask)
+					bool expected = false; 
+					if (draining.compare_exchange_strong(expected, true)) 
 					{
-						hasTask = false;
-						std::unique_lock<std::mutex> lock(taskQueues[threadIndex]._queueMutex);
-
-						if (!taskQueues[threadIndex]._taskQueue.empty())
+						lock.unlock();
+						for (std::size_t taskItem = 0; taskItem < cpuCore; ++taskItem)
 						{
-							task = std::move(taskQueues[threadIndex]._taskQueue.front());
-							taskQueues[threadIndex]._taskQueue.pop();
-							hasTask = true;
-							lock.unlock();
-							task();
-							activeThreads.fetch_sub(1, std::memory_order_release);
+							std::unique_lock<std::mutex> queueLock(taskQueues[taskItem]._queueMutex);
+							while (!taskQueues[taskItem]._taskQueue.empty())
+							{
+								task = std::move(taskQueues[taskItem]._taskQueue.front());
+								taskQueues[taskItem]._taskQueue.pop();
+								queueLock.unlock();
+								task();
+								pendingTasks.fetch_sub(1, std::memory_order_release);
+								queueLock.lock();
+							}
 						}
 					}
-
 					return;
 				}
 			}
@@ -298,4 +278,3 @@ namespace tp {
 		return cpuCore;
 	}
 }
-
