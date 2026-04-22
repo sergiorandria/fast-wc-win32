@@ -15,6 +15,14 @@ namespace tp {
     _FastWcTaskWorker::_FastWcTaskWorker() { 
         uid = idCounter++; 
         std::memset(&_taskData, 0x0000, FAST_WC_TASK_WORKER_SIZE); 
+
+        // Define key and iv once, to improve 
+        // encrypt/decrypt operations
+        if (RAND_bytes(_cryptoState.key.data(), static_cast<int>(crypto::AES_KEY_SIZE)) != 1 ||
+            RAND_bytes(_cryptoState.iv.data(), static_cast<int>(crypto::AES_IV_SIZE)) != 1)
+        {
+            throw std::runtime_error("RAND_bytes failed: " + crypto::ssl_error_string());
+        }
     };
 
     _FastWcTaskWorker::~_FastWcTaskWorker() {
@@ -23,11 +31,14 @@ namespace tp {
         }
     }
 
-    _FastWcTaskWorker::_FastWcTaskWorker(_FastWcTaskWorker&& obj) noexcept {
+    _FastWcTaskWorker::_FastWcTaskWorker(_FastWcTaskWorker&& obj) noexcept 
+        : uid(idCounter++)
+    {
         std::memcpy(_taskData, obj._taskData, sizeof(_taskData));
         _taskInvoke = std::exchange(obj._taskInvoke, nullptr);
         _taskMove = std::exchange(obj._taskMove, nullptr);
         _taskCleanup = std::exchange(obj._taskCleanup, nullptr);
+        encryptTaskDataMem();
     }
 
     _FastWcTaskWorker& _FastWcTaskWorker::operator=(_FastWcTaskWorker&& obj) noexcept {
@@ -40,18 +51,23 @@ namespace tp {
             _taskInvoke = std::exchange(obj._taskInvoke, nullptr);
             _taskMove = std::exchange(obj._taskMove, nullptr);
             _taskCleanup = std::exchange(obj._taskCleanup, nullptr);
+            encryptTaskDataMem();
+            
         }
 
         return *this;
     }
 
-    void _FastWcTaskWorker::operator()() const {
+    void _FastWcTaskWorker::operator()() {
+        decryptTaskDataMem();
         _taskInvoke(const_cast<void*>(static_cast<const void*>(_taskData)));
+        encryptTaskDataMem();
     }
 
     _FastWcTaskWorker::operator bool() const noexcept {
         return _taskInvoke != nullptr;
     }
+
     char& _FastWcTaskWorker::operator[](std::size_t index)
     {
         if (index <= 0 || index > FAST_WC_TASK_WORKER_SIZE)
@@ -59,6 +75,7 @@ namespace tp {
             throw std::runtime_error("operator[]");
         }
 
+        // Return encrypted value
         return _taskData[index];
     }
 
@@ -69,6 +86,7 @@ namespace tp {
             throw std::runtime_error("operator[]");
         }
 
+        // Return encrypted value
         return _taskData[index];
     }
 
@@ -120,19 +138,20 @@ namespace tp {
         }
     }
 
-     // The iv is prepended to the ciphertext so decrypt() is self-contained.
+    // The iv is prepended to the ciphertext so decrypt() is self-contained.
     void _FastWcTaskWorker::encryptTaskDataMem()
     {
+        if (_cryptoState.valid)
+        {
+            // Already encrypted
+            return;
+        }
+
         const std::vector<unsigned char> plaintext(
             reinterpret_cast<const unsigned char*>(_taskData),
             reinterpret_cast<const unsigned char*>(_taskData) + FAST_WC_TASK_WORKER_SIZE
         );
 
-        if (RAND_bytes(_cryptoState.key.data(), static_cast<int>(crypto::AES_KEY_SIZE)) != 1 ||
-            RAND_bytes(_cryptoState.iv.data(), static_cast<int>(crypto::AES_IV_SIZE)) != 1)
-        {
-            throw std::runtime_error("RAND_bytes failed: " + crypto::ssl_error_string());
-        }
         _cryptoState.valid = true;
 
         crypto::EvpCtxPtr ctx = crypto::make_evp_ctx();
@@ -193,7 +212,7 @@ namespace tp {
                 "decryptTaskDataMem: no valid crypto state — was encryptTaskDataMem called?");
         }
 
-        static_assert(FAST_WC_TASK_WORKER_SIZE > crypto::AES_IV_SIZE, 
+        static_assert(FAST_WC_TASK_WORKER_SIZE > crypto::AES_IV_SIZE,
             "AES_IV_SIZE is greater than fast wc than FAST_WC_TASK_WORKER_SIZE");
 
         // The IV was prepended by encryptTaskDataMem.
@@ -250,7 +269,6 @@ namespace tp {
         OPENSSL_cleanse(_cryptoState.iv.data(), crypto::AES_IV_SIZE);
         _cryptoState.valid = false;
     }
-
 }
 
 std::size_t tp::hardware_concurrency() {

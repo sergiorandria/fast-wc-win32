@@ -909,30 +909,30 @@ namespace core {
 
         for (const auto& file : _mappedFile) {
             if (countLine) {
-                std::cout << std::setw(maxLinesWidth+1) << file.getLineCnt() << ' ';
+                std::cout << std::setw(std::max((size_t)5, maxLinesWidth+1)) << file.getLineCnt() << ' ';
             }
             if (countWord) {
-                std::cout << std::setw(maxWordsWidth+1) << file.getWordCnt() << ' ';
+                std::cout << std::setw(std::max((size_t)5, maxWordsWidth + 1)) << file.getWordCnt() << ' ';
             }
             if (countChar) {
-                std::cout << std::setw(maxCharsWidth+1) << file.getCharCnt() << ' ';
+                std::cout << std::setw(std::max((size_t)5, maxCharsWidth + 1)) << file.getCharCnt() << ' ';
             }
             if (countByte) {
-                std::cout << std::setw(maxBytesWidth+1) << file.getBytesCnt() << ' ';
+                std::cout << std::setw(std::max((size_t)5, maxBytesWidth + 1)) << file.getBytesCnt() << ' ';
             }
             std::cout << file.filename() << std::endl;
         }
         if (countLine) {
-            std::cout << std::setw(maxLinesWidth+1) << totalLines << ' ';
+            std::cout << std::setw(std::max((size_t)5, maxLinesWidth + 1)) << totalLines << ' ';
         }
         if (countWord) {
-            std::cout << std::setw(maxWordsWidth+1) << totalWords << ' ';
+            std::cout << std::setw(std::max((size_t)5, maxWordsWidth + 1)) << totalWords << ' ';
         }
         if (countChar) {
-            std::cout << std::setw(maxCharsWidth+1) << totalChars << ' ';
+            std::cout << std::setw(std::max((size_t)5, maxCharsWidth + 1)) << totalChars << ' ';
         }
         if (countByte) {
-            std::cout << std::setw(maxBytesWidth+1) << totalBytes << ' ';
+            std::cout << std::setw(std::max((size_t)5, maxBytesWidth + 1)) << totalBytes << ' ';
         }
         std::cout << "total" << std::endl;
     }

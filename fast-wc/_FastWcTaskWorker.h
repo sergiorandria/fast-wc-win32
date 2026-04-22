@@ -29,7 +29,7 @@ namespace tp {
 		template <typename Callable>
 		_FastWcTaskWorker(Callable&& task);
 
-		void operator()() const; 
+		void operator()(); 
 		explicit operator bool() const noexcept;
 
 	private: 
