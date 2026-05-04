@@ -31,20 +31,20 @@ namespace crypto
         return ctx;
     }
 
-    struct CryptoState
+    struct _FastWcCryptoState
     {
         std::array<unsigned char, AES_KEY_SIZE> key{};
         std::array<unsigned char, AES_IV_SIZE>  iv{};
         bool valid = false;
 
-        ~CryptoState() noexcept;
+        ~_FastWcCryptoState() noexcept;
 
         // Non-copyable, key material must not be duplicated casually
-        CryptoState()                               = default;
-        CryptoState(const CryptoState&)             = delete;
-        CryptoState& operator=(const CryptoState&)  = delete;
-        CryptoState(CryptoState&&)                  = default;
-        CryptoState& operator=(CryptoState&&)       = default;
+        _FastWcCryptoState()                                      = default;
+        _FastWcCryptoState(const _FastWcCryptoState&)             = delete;
+        _FastWcCryptoState& operator=(const _FastWcCryptoState&)  = delete;
+        _FastWcCryptoState(_FastWcCryptoState&&)                  = default;
+        _FastWcCryptoState& operator=(_FastWcCryptoState&&)       = default;
     };
 
     inline std::string ssl_error_string() noexcept

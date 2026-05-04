@@ -34,7 +34,7 @@ namespace tp {
 
 	private: 
 		std::size_t uid; 
-		crypto::CryptoState _cryptoState;
+		crypto::_FastWcCryptoState _cryptoState;
 		alignas(std::max_align_t) char _taskData[FAST_WC_TASK_WORKER_SIZE];
 
 		void (*_taskInvoke)(void*)		= nullptr;
