@@ -44,5 +44,4 @@ namespace tp {
 
 		void revokeAll();
 	};
-
 }

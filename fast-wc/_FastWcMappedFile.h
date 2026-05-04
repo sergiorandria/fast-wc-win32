@@ -72,9 +72,6 @@ namespace fs {
 		__FORCE_INLINE std::span<const char, std::dynamic_extent> as_span() const noexcept;
 		__FORCE_INLINE std::span<const char> __weak_span() const noexcept; 
 
-#pragma weak __weak_span 
-#pragma weak __weak_span = as_span;
-
 		explicit _FastWcMappedFile();
 		explicit _FastWcMappedFile(const std::string& filename);
 		explicit _FastWcMappedFile(std::string_view filename, _FastWcMappedFileMode mode);

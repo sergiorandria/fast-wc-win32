@@ -37,15 +37,14 @@ namespace crypto
         std::array<unsigned char, AES_IV_SIZE>  iv{};
         bool valid = false;
 
-
         ~CryptoState() noexcept;
 
         // Non-copyable, key material must not be duplicated casually
-        CryptoState() = default;
-        CryptoState(const CryptoState&) = delete;
-        CryptoState& operator=(const CryptoState&) = delete;
-        CryptoState(CryptoState&&) = default;
-        CryptoState& operator=(CryptoState&&) = default;
+        CryptoState()                               = default;
+        CryptoState(const CryptoState&)             = delete;
+        CryptoState& operator=(const CryptoState&)  = delete;
+        CryptoState(CryptoState&&)                  = default;
+        CryptoState& operator=(CryptoState&&)       = default;
     };
 
     inline std::string ssl_error_string() noexcept

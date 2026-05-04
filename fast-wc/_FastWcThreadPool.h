@@ -25,11 +25,11 @@ namespace tp {
 
 		~_FastWcThreadPool();
 
-		template <FastWcSubmittable<> Callable, typename... Args>
+		template <_FastWcSubmittable<> Callable, typename... Args>
 		auto submit(const _FastWcCapabilityToken& token, Callable&& fn, Args&&... args)
 			-> std::future<std::invoke_result_t<Callable, Args...>>;
 
-		auto enqueue(const _FastWcCapabilityToken& token, FastWcCallable auto task) -> void;
+		auto enqueue(const _FastWcCapabilityToken& token, _FastWcCallable auto task) -> void;
 
 		template <typename Iterator>
 		void enqueueBatch(const _FastWcCapabilityToken& token, Iterator begin, Iterator end);
@@ -93,7 +93,7 @@ namespace tp {
 		std::atomic<std::size_t>  pendingTasks = 0;
 	};
 
-	template <FastWcSubmittable<> Callable, typename... Args>
+	template <_FastWcSubmittable<> Callable, typename... Args>
 	auto _FastWcThreadPool::submit(const _FastWcCapabilityToken& token, Callable&& fn, Args&&... args)
 		-> std::future<std::invoke_result_t<Callable, Args...>>
 	{
@@ -131,7 +131,7 @@ namespace tp {
 		return result;
 	}
 
-	auto _FastWcThreadPool::enqueue(const _FastWcCapabilityToken& token, FastWcCallable auto task) -> void
+	auto _FastWcThreadPool::enqueue(const _FastWcCapabilityToken& token, _FastWcCallable auto task) -> void
 	{
 		validateToken(token);
 
