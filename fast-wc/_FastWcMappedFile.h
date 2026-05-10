@@ -3,7 +3,6 @@
 #include <string>
 #include <string_view>
 
-//#define NOMINMAX
 #include <Windows.h>
 #include <span>
 
@@ -13,9 +12,9 @@ namespace fs {
 #ifdef __cplusplus
 	// Can use typed enum class, 
 	// limit memory allocation to short
-	enum class _FastWcMappedFileMode: short{
+	enum class _FastWcMappedFileMode : short {
 		UseMapping,
-		BytesOnly, 
+		BytesOnly,
 		DefaultValue
 	};
 #else
@@ -43,14 +42,14 @@ namespace fs {
 		std::string filenameInfo;
 		static std::once_flag _checkValidityFlag;
 		_FastWcMappedFileMode mode{ _FastWcMappedFileMode::UseMapping };
-		
+
 		size_t wordCount{};
 		size_t lineCount{};
 		size_t charCount{};
 		size_t bytesCount{};
 
 		bool isStdIn = false;
-			
+
 		[[nodiscard]]
 		__FORCE_INLINE bool valid() const noexcept;
 		__FORCE_INLINE std::size_t size() const noexcept;
@@ -67,10 +66,10 @@ namespace fs {
 		std::size_t getBytesCnt() const noexcept;
 
 		using DynamicExtent = std::integral_constant<std::size_t, std::dynamic_extent>;
-		
+
 		[[nodiscard]]
 		__FORCE_INLINE std::span<const char, std::dynamic_extent> as_span() const noexcept;
-		__FORCE_INLINE std::span<const char> __weak_span() const noexcept; 
+		__FORCE_INLINE std::span<const char> __weak_span() const noexcept;
 
 		explicit _FastWcMappedFile();
 		explicit _FastWcMappedFile(const std::string& filename);

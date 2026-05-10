@@ -19,7 +19,7 @@ namespace tp {
 		std::shared_ptr<std::atomic_bool> _valid;
 
 		_FastWcCapabilityToken(std::uint64_t id, _FastWcPrivilegeTier tier, std::shared_ptr<std::atomic_bool> valid)
-			: _id(id), _tier(tier), _valid(std::move(valid)) 
+			: _id(id), _tier(tier), _valid(std::move(valid))
 		{
 		}
 
@@ -28,8 +28,8 @@ namespace tp {
 
 		bool isValid() const noexcept;
 
-		_FastWcPrivilegeTier tier() const noexcept; 
-		std::uint64_t        id()   const noexcept; 
+		_FastWcPrivilegeTier tier() const noexcept;
+		std::uint64_t        id()   const noexcept;
 	};
 
 	class _FastWcTokenAuthority {

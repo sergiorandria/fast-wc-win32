@@ -1,19 +1,19 @@
 #pragma once
 #include <mutex>
 
-template <class Derived> 
+template <class Derived>
 class ISingleton {
 public:
 	template <typename ...Args>
 	static Derived* Instance(Args...args);
 
-protected: 
+protected:
 	ISingleton();
-	~ISingleton(); 
+	~ISingleton();
 
-	static std::unique_ptr<Derived> _sInstance; 
+	static std::unique_ptr<Derived> _sInstance;
 	static std::mutex _sMutex;
-	static std::once_flag _sInitFlag; 
+	static std::once_flag _sInitFlag;
 };
 
 template <class Derived>
@@ -31,7 +31,7 @@ inline Derived* ISingleton<Derived>::Instance(Args ...args)
 {
 	std::call_once(_sInitFlag, [&]() {
 		_sInstance.reset(new (std::nothrow) Derived(args...));
-	});
+		});
 
 	return _sInstance.get();
 }
@@ -41,7 +41,7 @@ inline ISingleton<Derived>::ISingleton()
 {
 }
 
-template <class Derived> 
+template <class Derived>
 inline ISingleton<Derived>::~ISingleton()
 {
 }

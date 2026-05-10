@@ -18,8 +18,8 @@ namespace core {
 	class _FastWcInternalClass : public ISingleton<_FastWcInternalClass>
 	{
 		friend class ISingleton<_FastWcInternalClass>;
-	public: 
-		
+	public:
+
 		void wc();
 
 		void blazinglyFastWc();
@@ -38,11 +38,11 @@ namespace core {
 		__FORCE_INLINE std::size_t getTotalChar() const noexcept;
 
 		__FORCE_INLINE std::size_t getTotalBytes() const noexcept;
-		
+
 		void printHeader() const;
 		__FORCE_INLINE void printTotal() const noexcept;
 
-	private: 
+	private:
 		__FORCE_INLINE _FastWcInternalClass() {
 			_argParser.add_argument("-l", "--lines")
 				.action([&](const auto&) { countLine = true; })
@@ -88,7 +88,7 @@ namespace core {
 
 		bool _taskFinished = false;
 		argparse::ArgumentParser _argParser{ "fast-wc" };
-		
+
 		std::vector<fs::_FastWcMappedFile> _mappedFile;
 		tp::_FastWcTokenAuthority _tokenAuthority;
 

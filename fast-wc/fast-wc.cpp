@@ -7,11 +7,11 @@
 
 int main(int argc, char* argv[])
 {
-    auto obj = core::_FastWcInternalClass::Instance();
-    
+	auto obj = core::_FastWcInternalClass::Instance();
+
 	obj->initClass(argc, argv);
-    obj->blazinglyFastWc();
-    obj->printTotal();
+	obj->blazinglyFastWc();
+	obj->printTotal();
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

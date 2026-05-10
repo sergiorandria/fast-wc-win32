@@ -1,18 +1,18 @@
 #pragma once
 
-#include <future>
-#include <functional>
 #include <atomic>
-#include <vector>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
+#include <future>
 #include <iterator>
 #include <ranges>
+#include <vector>
 
 #include "ISingleton.h"
 #include "_FastWcAlignedTaskQueue.h"
-#include "_FastWcTaskConcept.h"     
 #include "_FastWcCapabilityToken.h"  
+#include "_FastWcTaskConcept.h"     
 
 namespace tp {
 

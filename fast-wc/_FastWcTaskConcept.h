@@ -14,7 +14,7 @@ namespace tp {
 	concept _FastWcCallable = std::invocable<F> && std::is_void_v<std::invoke_result_t<F>>;
 
 	template<typename F>
-	concept _FastWcCallableWithToken = std::invocable<F> && requires (F && f) 
+	concept _FastWcCallableWithToken = std::invocable<F> && requires (F && f)
 	{
 		std::is_convertible_v<decltype(f.token), std::string>;
 	};
@@ -23,8 +23,8 @@ namespace tp {
 		requires (_FastWcSubmittable<F, Args...>&& _FastWcCallable<F>&& _FastWcCallableWithToken<F>)
 	class _FastWcTaskConcept
 	{
-	public: 
-		template<class Concept> 
+	public:
+		template<class Concept>
 		constexpr bool _is_concept_callable()
 		{
 			static_assert(_FastWcCallable<Concept>, "Mismatching concept!\n");
