@@ -153,9 +153,6 @@ namespace tp {
 		tpCv.notify_one();
 	}
 
-	template <typename T, typename U>
-	constexpr bool is_same_v = std::is_same<T, U>::value;
-
 	template <typename Iterator>
 	void _FastWcThreadPool::enqueueBatch(const _FastWcCapabilityToken& token, Iterator begin, Iterator end)
 	{

@@ -4,9 +4,9 @@
 
 namespace util {
 	template <typename T>
-	struct is_future_v : std::false_type {};
+	inline constexpr bool is_future_v = false;
 	template <typename T>
-	struct is_future_v<std::future<T>> : std::true_type {};
+	inline constexpr bool is_future_v<std::future<T>> = true;
 
 
 	size_t intWidth(size_t n);

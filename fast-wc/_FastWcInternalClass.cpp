@@ -390,7 +390,7 @@ namespace core {
 		}
 
 		size_t __l_count{};
-		auto data = mapped_file[f_idx].as_span();
+		auto data = _mappedFile[f_idx].as_span();
 		const char* ptr = data.data();
 		const char* end = ptr + data.size();
 		const __m512i newline = _mm512_set1_epi8('\n');
@@ -667,49 +667,35 @@ namespace core {
 	 * @note Requires CPU with AVX2 support.
 	 */
 	[[gnu::target("avx2")]]
-	__FORCE_INLINE size_t __wc_char_m(Translation translation = std::identity{},
-		size_t f_idx = 0) noexcept {
-		if (mapped_file.empty() || !mapped_file[f_idx].valid()) {
+	__FORCE_INLINE std::size_t _FastWcInternalClass::wcCharM(std::size_t f_idx) noexcept {
+		if (_mappedFile.empty() || !_mappedFile[f_idx].valid()) {
 			return 0;
 		}
 
-		auto __data = mapped_file[f_idx].as_span();
-		const char* ptr = __data.data();
-		const char* end = ptr + __data.size();
-		size_t char_count = 0;
+		auto data = _mappedFile[f_idx].as_span();
+		const char* ptr = data.data();
+		const char* end = ptr + data.size();
+		std::size_t charCount = 0;
 
-		// UTF-8 continuation bytes start with 10xxxxxx (0x80-0xBF)
-		// We count all bytes that are NOT continuation bytes
-		const __m256i continuation_mask = _mm256_set1_epi8(0xC0);    // 11000000
-		const __m256i continuation_pattern = _mm256_set1_epi8(0x80); // 10000000
+		const __m256i continuationMask = _mm256_set1_epi8(0xC0);
+		const __m256i continuationPattern = _mm256_set1_epi8(0x80);
 
-		while (LIKELY(ptr + 32 <= end)) {
+		while (ptr + 32 <= end) [[likely]] {
 			__m256i chunk =
 				_mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr));
-
-			// Get top 2 bits: (byte & 11000000)
-			__m256i masked = _mm256_and_si256(chunk, continuation_mask);
-
-			// Compare with 10000000 (continuation bytes)
-			__m256i is_continuation = _mm256_cmpeq_epi8(masked, continuation_pattern);
-
-			// Get mask of continuation bytes
-			int continuation_bits = _mm256_movemask_epi8(is_continuation);
-
-			// Count non-continuation bytes (characters)
-			// 32 total bytes - number of continuation bytes
-			char_count +=
-				32 - __builtin_popcount(static_cast<uint32_t>(continuation_bits));
+			__m256i masked = _mm256_and_si256(chunk, continuationMask);
+			__m256i isContinuation = _mm256_cmpeq_epi8(masked, continuationPattern);
+			const int continuationBits = _mm256_movemask_epi8(isContinuation);
+			charCount += 32 - std::popcount(static_cast<unsigned>(continuationBits));
 			ptr += 32;
 		}
-		// Handle remainder
-		while (LIKELY(ptr < end)) {
-			// A byte is a character start if top 2 bits are NOT 10
-			char_count += ((*ptr & 0xC0) != 0x80);
-			ptr++;
+
+		while (ptr < end) [[likely]] {
+			charCount += ((*ptr & 0xC0) != 0x80);
+			++ptr;
 		}
 
-		return char_count;
+		return charCount;
 	}
 
 #elif _M_IX86_FP == 2
@@ -872,11 +858,7 @@ namespace core {
 
 
 
-#if __cplusplus < 201402L
-	auto mark(const std::string& str, std::string color) -> decltype(dye::vanilla(""))
-#else
 	auto mark(const std::string& str, std::string color)
-#endif
 	{
 		std::istringstream iss(str);
 		auto marked = dye::vanilla("");

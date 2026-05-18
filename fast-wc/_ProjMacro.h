@@ -1,5 +1,10 @@
 #pragma once
 
+// Target C++26; MSVC maps this to /std:c++latest until stdcpp26 is available.
+#if !defined(_MSVC_LANG) || _MSVC_LANG < 202400L
+#error "fast-wc requires C++26 (build with /std:c++latest or newer)."
+#endif
+
 #define PROJ_PATH L"C:\\Users\\sergi\\source\\repos\\fast-wc\\fast-wc"
 
 #define TASK_WORKER_ASSERTIONS_ENABLED 

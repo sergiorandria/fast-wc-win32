@@ -9,24 +9,11 @@
 #include "_ProjMacro.h"
 
 namespace fs {
-#ifdef __cplusplus
-	// Can use typed enum class, 
-	// limit memory allocation to short
 	enum class _FastWcMappedFileMode : short {
 		UseMapping,
 		BytesOnly,
 		DefaultValue
 	};
-#else
-	extern "C" {
-		// Fallback to enum types
-		enum _FastWcMappedFileMode {
-			UseMapping,				// 0x0000
-			BytesOnly,				// 0x0001
-			DefaultValue			// 0x0002
-		};
-	}
-#endif 
 	// Mapped file class, which is used to read file content directly from memory, 
 	// and the file content is automatically released when the object is destroyed.
 	// This can cause some performance improvement since we can avoid the overhead of file I/O and memory copying.

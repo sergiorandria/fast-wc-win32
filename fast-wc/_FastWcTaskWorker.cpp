@@ -92,11 +92,13 @@ namespace tp {
 
 	bool _FastWcTaskWorker::verifyTaskDataIntegrity()
 	{
+		if (!_cryptoState.valid) {
+			return true;
+		}
+
 		auto key = _cryptoState.key.data();
 		auto iv = _cryptoState.iv.data();
 
-		// If encrypt is called
-		if (_cryptoState.valid)
 		{
 			// Trying to decrypt _taskData 
 			const unsigned char* src = reinterpret_cast<const unsigned char*>(_taskData);
